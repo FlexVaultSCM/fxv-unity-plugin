@@ -63,13 +63,19 @@ namespace FlexVault.VCS.Editor.UI
 
         public static void OpenDiff(string leftPath, string rightPath)
         {
-            // If an external diff tool (e.g., TortoiseMerge, Beyond Compare, VS Code, or Rider) is configured,
-            // or we can invoke Unity's code editor or open the temp file.
-            // On Windows/macOS, opening the files or launching editor diff:
+            string ext = Path.GetExtension(rightPath)?.ToLowerInvariant();
+            bool isUnityYaml = ext == ".unity" || ext == ".prefab" || ext == ".asset" || ext == ".mat";
+
+            if (isUnityYaml)
+            {
+                if (TryLaunchUnityYamlMerge(leftPath, rightPath))
+                {
+                    return;
+                }
+            }
+
             try
             {
-                // In Unity Editor, try CodeEditor or OpenWithDefaultApp
-                // If VS Code is present, `code --diff <left> <right>` is widely supported
                 string codePath = FindExecutableOnPath("code") ?? FindExecutableOnPath("code.cmd");
                 if (!string.IsNullOrEmpty(codePath))
                 {
@@ -87,9 +93,61 @@ namespace FlexVault.VCS.Editor.UI
                 // Fall back
             }
 
-            // Fallback: Open both files with default app or show in explorer
+            // Fallback: Open both files with default app
             EditorUtility.OpenWithDefaultApp(leftPath);
             EditorUtility.OpenWithDefaultApp(rightPath);
+        }
+
+        private static bool TryLaunchUnityYamlMerge(string baseOrLeftPath, string localOrRightPath)
+        {
+            string yamlMergePath = FindUnityYamlMerge();
+            if (string.IsNullOrEmpty(yamlMergePath) || !File.Exists(yamlMergePath))
+            {
+                return false;
+            }
+
+            try
+            {
+                // UnityYAMLMerge merge -p <base> <theirs> <mine> <result>
+                // For a 2-way diff visualization:
+                var startInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = yamlMergePath,
+                    Arguments = $"merge -p \"{baseOrLeftPath}\" \"{localOrRightPath}\" \"{localOrRightPath}\" \"{localOrRightPath}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                var proc = System.Diagnostics.Process.Start(startInfo);
+                return proc != null;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static string FindUnityYamlMerge()
+        {
+            string appContents = EditorApplication.applicationContentsPath;
+            if (Application.platform == RuntimePlatform.WindowsEditor)
+            {
+                string candidate = Path.Combine(appContents, "Tools", "UnityYAMLMerge.exe");
+                if (File.Exists(candidate)) return candidate;
+
+                string editorDir = Path.GetDirectoryName(EditorApplication.applicationPath);
+                candidate = Path.Combine(editorDir, "Data", "Tools", "UnityYAMLMerge.exe");
+                if (File.Exists(candidate)) return candidate;
+            }
+            else
+            {
+                string candidate = Path.Combine(appContents, "Helpers", "UnityYAMLMerge");
+                if (File.Exists(candidate)) return candidate;
+
+                candidate = Path.Combine(appContents, "Tools", "UnityYAMLMerge");
+                if (File.Exists(candidate)) return candidate;
+            }
+            return null;
         }
 
         private static string FindExecutableOnPath(string exeName)
