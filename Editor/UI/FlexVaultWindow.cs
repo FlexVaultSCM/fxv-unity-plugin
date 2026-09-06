@@ -238,16 +238,26 @@ namespace FlexVault.VCS.Editor.UI
             EditorGUILayout.EndScrollView();
 
             GUILayout.Space(5f);
-            EditorGUILayout.LabelField("Commit Description (Workspace-wide publish):", EditorStyles.boldLabel);
-            m_commitDescription = EditorGUILayout.TextArea(m_commitDescription, GUILayout.Height(50));
+            EditorGUILayout.LabelField("Commit Description (Draft snapshot or workspace-wide publish):", EditorStyles.boldLabel);
+            m_commitDescription = EditorGUILayout.TextArea(m_commitDescription, GUILayout.Height(45));
 
             GUILayout.Space(3f);
-            GUI.enabled = !m_isOperating && !string.IsNullOrWhiteSpace(m_commitDescription);
-            if (GUILayout.Button("Publish Changes", GUILayout.Height(32)))
+            EditorGUILayout.BeginHorizontal();
             {
-                PublishChanges();
+                GUI.enabled = !m_isOperating;
+                if (GUILayout.Button("Create Local Snapshot", GUILayout.Height(32)))
+                {
+                    CreateLocalSnapshot();
+                }
+
+                GUI.enabled = !m_isOperating && !string.IsNullOrWhiteSpace(m_commitDescription);
+                if (GUILayout.Button("Publish to Remote", GUILayout.Height(32)))
+                {
+                    PublishChanges();
+                }
+                GUI.enabled = true;
             }
-            GUI.enabled = true;
+            EditorGUILayout.EndHorizontal();
             GUILayout.Space(5f);
         }
 
@@ -324,6 +334,42 @@ namespace FlexVault.VCS.Editor.UI
             };
 
             GUILayout.Label(text, style, GUILayout.Width(80));
+        }
+
+        private async void CreateLocalSnapshot()
+        {
+            string desc = string.IsNullOrWhiteSpace(m_commitDescription)
+                ? $"Manual draft snapshot at {DateTime.Now:yyyy-MM-dd HH:mm:ss}"
+                : m_commitDescription.Trim();
+
+            m_isOperating = true;
+            EditorApplication.LockReloadAssemblies();
+
+            try
+            {
+                EditorUtility.DisplayProgressBar("FlexVault", "Creating local draft snapshot...", 0.5f);
+                var snapResult = await FxvRunner.SnapshotAsync(desc);
+                if (!snapResult.Success)
+                {
+                    EditorUtility.DisplayDialog("Snapshot Failed", snapResult.ErrorMessage, "OK");
+                    return;
+                }
+
+                m_commitDescription = string.Empty;
+                m_selectedPaths.Clear();
+                Debug.Log($"[FlexVault] Local draft snapshot created: {desc}");
+            }
+            catch (Exception ex)
+            {
+                EditorUtility.DisplayDialog("Snapshot Error", ex.Message, "OK");
+            }
+            finally
+            {
+                EditorUtility.ClearProgressBar();
+                EditorApplication.UnlockReloadAssemblies();
+                m_isOperating = false;
+                FlexVaultStateCache.RefreshAsync();
+            }
         }
 
         private async void PublishChanges()
