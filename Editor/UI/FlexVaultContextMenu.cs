@@ -140,6 +140,74 @@ namespace FlexVault.VCS.Editor.UI
             return FlexVaultSettings.IsInFlexVaultRepository();
         }
 
+        [MenuItem(MenuRoot + "Resolve Conflict/Keep Mine (Local Draft)", false, 130)]
+        public static void ResolveMineSelected()
+        {
+            ResolveSelectedConflict(FxvRunner.ResolveAction.Mine);
+        }
+
+        [MenuItem(MenuRoot + "Resolve Conflict/Take Theirs (Published)", false, 131)]
+        public static void ResolveTheirsSelected()
+        {
+            ResolveSelectedConflict(FxvRunner.ResolveAction.Theirs);
+        }
+
+        private static async void ResolveSelectedConflict(FxvRunner.ResolveAction action)
+        {
+            var selectedGuids = Selection.assetGUIDs;
+            if (selectedGuids == null || selectedGuids.Length == 0) return;
+
+            var paths = new List<string>();
+            foreach (string guid in selectedGuids)
+            {
+                string p = AssetDatabase.GUIDToAssetPath(guid);
+                if (!string.IsNullOrEmpty(p)) paths.Add(p);
+            }
+            if (paths.Count == 0) return;
+
+            var expanded = FlexVaultMetaHelper.ExpandWithMeta(paths);
+            var repoRelative = new List<string>();
+            foreach (var p in expanded)
+            {
+                repoRelative.Add(FlexVaultMetaHelper.ToRepoRelativePath(p));
+            }
+
+            string actionName = action == FxvRunner.ResolveAction.Mine ? "Keep Mine" : "Take Theirs";
+            if (!EditorUtility.DisplayDialog(
+                "Confirm Conflict Resolution",
+                $"Resolve {paths.Count} file(s) with action: {actionName}?\nThis will clear the conflict state.",
+                "Resolve",
+                "Cancel"))
+            {
+                return;
+            }
+
+            EditorApplication.LockReloadAssemblies();
+            try
+            {
+                EditorUtility.DisplayProgressBar("FlexVault", $"Resolving conflicts ({actionName})...", 0.5f);
+                var result = await FxvRunner.ResolveAsync(action, repoRelative);
+                if (!result.Success)
+                {
+                    EditorUtility.DisplayDialog("Resolve Failed", result.ErrorMessage, "OK");
+                }
+            }
+            finally
+            {
+                EditorUtility.ClearProgressBar();
+                AssetDatabase.Refresh();
+                EditorApplication.UnlockReloadAssemblies();
+                FlexVaultStateCache.RefreshAsync();
+            }
+        }
+
+        [MenuItem(MenuRoot + "Resolve Conflict/Keep Mine (Local Draft)", true)]
+        [MenuItem(MenuRoot + "Resolve Conflict/Take Theirs (Published)", true)]
+        public static bool ValidateResolveConflict()
+        {
+            return Selection.assetGUIDs != null && Selection.assetGUIDs.Length > 0 && FlexVaultSettings.IsInFlexVaultRepository();
+        }
+
         [MenuItem(MenuRoot + "Revert Selected", true)]
         public static bool ValidateRevertSelected()
         {

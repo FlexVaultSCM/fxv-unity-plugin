@@ -242,6 +242,53 @@ namespace FlexVault.VCS.Editor.Core
                 }
             }
 
+        public enum ResolveAction
+        {
+            Mine,
+            Theirs,
+            Undo
+        }
+
+        public static async Task<FxvResult<WorkspaceSyncPayload>> ResolveAsync(
+            ResolveAction action,
+            IEnumerable<string> repoRelativePaths = null,
+            CancellationToken ct = default)
+        {
+            var args = new List<string> { "resolve" };
+            switch (action)
+            {
+                case ResolveAction.Mine:
+                    args.Add("--mine");
+                    break;
+                case ResolveAction.Theirs:
+                    args.Add("--theirs");
+                    break;
+                case ResolveAction.Undo:
+                    args.Add("--undo");
+                    break;
+            }
+
+            var pathList = new List<string>();
+            if (repoRelativePaths != null)
+            {
+                foreach (string p in repoRelativePaths)
+                {
+                    if (!string.IsNullOrWhiteSpace(p))
+                    {
+                        pathList.Add(p);
+                    }
+                }
+            }
+
+            if (pathList.Count > 0)
+            {
+                args.AddRange(pathList);
+            }
+            else
+            {
+                args.Add("--all");
+            }
+
             return await RunCommandAsync<WorkspaceSyncPayload>(args, ct);
         }
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using FlexVault.VCS.Editor.Core;
 using UnityEditor;
 using UnityEngine;
@@ -177,6 +178,34 @@ namespace FlexVault.VCS.Editor.UI
                 return;
             }
 
+            int conflictCount = 0;
+            foreach (var f in changedFiles)
+            {
+                if (f.EffectiveState.Equals("conflicted", StringComparison.OrdinalIgnoreCase)) conflictCount++;
+            }
+
+            if (conflictCount > 0)
+            {
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                {
+                    EditorGUILayout.LabelField($"<b>{conflictCount} Conflicted File(s) Detected</b>", EditorStyles.wordWrappedLabel);
+                    EditorGUILayout.BeginHorizontal();
+                    {
+                        if (GUILayout.Button("Resolve All (Keep Mine)", GUILayout.Height(24)))
+                        {
+                            ResolveConflicts(FxvRunner.ResolveAction.Mine, null);
+                        }
+                        if (GUILayout.Button("Resolve All (Take Theirs)", GUILayout.Height(24)))
+                        {
+                            ResolveConflicts(FxvRunner.ResolveAction.Theirs, null);
+                        }
+                    }
+                    EditorGUILayout.EndHorizontal();
+                }
+                EditorGUILayout.EndVertical();
+                GUILayout.Space(4f);
+            }
+
             EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
             {
                 if (GUILayout.Button("Select All", EditorStyles.toolbarButton, GUILayout.Width(70)))
@@ -226,6 +255,19 @@ namespace FlexVault.VCS.Editor.UI
                         DrawStateBadge(item.EffectiveState);
 
                         EditorGUILayout.LabelField(item.Path, EditorStyles.label);
+
+                        bool isConflict = item.EffectiveState.Equals("conflicted", StringComparison.OrdinalIgnoreCase);
+                        if (isConflict)
+                        {
+                            if (GUILayout.Button("Mine", EditorStyles.miniButtonLeft, GUILayout.Width(40)))
+                            {
+                                ResolveConflicts(FxvRunner.ResolveAction.Mine, new[] { item.Path });
+                            }
+                            if (GUILayout.Button("Theirs", EditorStyles.miniButtonRight, GUILayout.Width(45)))
+                            {
+                                ResolveConflicts(FxvRunner.ResolveAction.Theirs, new[] { item.Path });
+                            }
+                        }
 
                         if (GUILayout.Button("Diff", EditorStyles.miniButton, GUILayout.Width(45)))
                         {
@@ -530,6 +572,46 @@ namespace FlexVault.VCS.Editor.UI
             catch (Exception ex)
             {
                 EditorUtility.DisplayDialog("Sync Error", ex.Message, "OK");
+            }
+            finally
+            {
+                EditorUtility.ClearProgressBar();
+                AssetDatabase.Refresh();
+                EditorApplication.UnlockReloadAssemblies();
+                m_isOperating = false;
+                FlexVaultStateCache.RefreshAsync();
+            }
+        }
+
+        private async void ResolveConflicts(FxvRunner.ResolveAction action, IEnumerable<string> paths)
+        {
+            string actionName = action == FxvRunner.ResolveAction.Mine ? "Keep Mine" : "Take Theirs";
+            string targetDesc = paths != null ? $"{paths.Count()} file(s)" : "all conflicted files";
+
+            if (!EditorUtility.DisplayDialog(
+                "Resolve Conflicts",
+                $"Resolve {targetDesc} with '{actionName}'?\nThis will update your draft to reflect the resolution.",
+                "Resolve",
+                "Cancel"))
+            {
+                return;
+            }
+
+            m_isOperating = true;
+            EditorApplication.LockReloadAssemblies();
+
+            try
+            {
+                EditorUtility.DisplayProgressBar("FlexVault", $"Resolving conflicts ({actionName})...", 0.5f);
+                var result = await FxvRunner.ResolveAsync(action, paths);
+                if (!result.Success)
+                {
+                    EditorUtility.DisplayDialog("Resolve Failed", result.ErrorMessage, "OK");
+                }
+            }
+            catch (Exception ex)
+            {
+                EditorUtility.DisplayDialog("Resolve Error", ex.Message, "OK");
             }
             finally
             {
