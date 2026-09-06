@@ -38,16 +38,22 @@ Navigate to **Edit > Project Settings > Version Control > FlexVault**:
 
 * **Dockable FlexVault Window** (`Window > Version Control > FlexVault`):
   * **Changes View**: Displays all modified, added, and deleted files with status badges.
-  * **Diff Support**: Diff individual or selected files against their published base.
+  * **Draft Checkpointing**: Create local snapshots (`fxv snapshot`) without publishing to remote.
+  * **Conflict Resolution**: Inline conflict resolution banners and per-file `[Mine]` / `[Theirs]` buttons (`fxv resolve`).
+  * **Diff Support**: Diff individual or selected files against their published base, with automatic delegation to `UnityYAMLMerge` for `.unity`, `.prefab`, `.asset`, and `.mat` files.
   * **Publish**: Prompts for a commit description and publishes the entire workspace draft (`fxv snapshot` followed by `fxv publish`).
   * **Revert**: Reverts selected assets and their companion `.meta` files to the published base.
   * **Sync View**: Displays revision status (revisions behind remote HEAD) and provides one-click workspace synchronization (`fxv sync`).
-  * **History View**: Shows recent branch commits with timestamps, author attribution, and revision comparison.
+  * **History & Revision Jumping**: Shows recent branch commits with timestamps, author attribution, revision comparison, and one-click workspace state switching (`fxv goto`).
 * **Project Window Badges**:
   * Displays visual status indicators on items in the Project window (`+` Added, `~` Modified, `-` Deleted, `!` Conflicted).
 * **Right-Click Context Menus** (`Assets > FlexVault`):
-  * Quick access to **Diff Selected Against Base**, **History**, **Revert Selected**, **Refresh Status**, and **Open FlexVault Window**.
-* **Engine Lifecycle Safety**:
+  * Quick access to **Diff Selected Against Base**, **Resolve Conflict** (Keep Mine / Take Theirs), **Ignore Selected** (Add to `.gitignore`), **History**, **Revert Selected**, **Refresh Status**, and **Open FlexVault Window**.
+* **Engine Lifecycle & Mutation Safety**:
   * Enforces asset and `.meta` companion atomicity (including recursive folder expansion).
+  * Safety guards prevent workspace mutations while in Play Mode or when scenes have unsaved edits.
   * Wraps file modification operations with `EditorApplication.LockReloadAssemblies()` to prevent domain reloads mid-operation.
   * Marshals asset reloads to the main thread via `AssetDatabase.Refresh()`.
+* **Project Settings & Authentication**:
+  * Auto-discovers CLI executables and tests CLI connection.
+  * In-editor user login and logout management (`fxv login` / `fxv logout`).
