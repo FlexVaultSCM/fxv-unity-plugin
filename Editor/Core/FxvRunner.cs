@@ -243,6 +243,12 @@ namespace FlexVault.VCS.Editor.Core
             return await RunCommandAsync<WorkspaceSyncPayload>(args, ct);
         }
 
+        public static async Task<FxvResult<WorkspaceSyncPayload>> GotoAsync(string revision, CancellationToken ct = default)
+        {
+            var args = new List<string> { "goto", revision };
+            return await RunCommandAsync<WorkspaceSyncPayload>(args, ct);
+        }
+
         public static async Task<FxvResult<WorkspaceSyncPayload>> RevertAsync(IEnumerable<string> repoRelativePaths, CancellationToken ct = default)
         {
             var args = new List<string> { "revert" };

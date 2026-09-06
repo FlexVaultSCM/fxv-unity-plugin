@@ -118,6 +118,12 @@ namespace FlexVault.VCS.Editor.UI
             EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
             {
                 GUILayout.Label($"Branch: {branch}", EditorStyles.boldLabel);
+
+                if (GUILayout.Button("Goto...", EditorStyles.toolbarDropDown, GUILayout.Width(65)))
+                {
+                    PromptGotoRevision();
+                }
+
                 GUILayout.FlexibleSpace();
                 GUILayout.Label($"User: {user}", EditorStyles.miniLabel);
 
@@ -720,6 +726,12 @@ namespace FlexVault.VCS.Editor.UI
                                 ? entry.TimestampUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
                                 : string.Empty;
                             GUILayout.Label(date, EditorStyles.miniLabel, GUILayout.Width(110));
+
+                            GUILayout.FlexibleSpace();
+                            if (GUILayout.Button("Switch To", EditorStyles.miniButton, GUILayout.Width(70)))
+                            {
+                                ExecuteGoto(entry.RevisionDisplay);
+                            }
                         }
                         EditorGUILayout.EndHorizontal();
 
@@ -732,5 +744,96 @@ namespace FlexVault.VCS.Editor.UI
             }
             EditorGUILayout.EndScrollView();
         }
+
+        private void PromptGotoRevision()
+        {
+            string rev = EditorInputDialog.Show("Goto Revision", "Enter target revision spec to move workspace state to (e.g. main.11 or main.11.2):", "");
+            if (!string.IsNullOrWhiteSpace(rev))
+            {
+                ExecuteGoto(rev.Trim());
+            }
+        }
+
+        private async void ExecuteGoto(string targetRevision)
+        {
+            if (!FlexVaultSafetyGuards.EnsureSafeToMutateWorkspace("Goto Revision", promptSaveDirtyScenes: true)) return;
+
+            if (!EditorUtility.DisplayDialog(
+                "Confirm Goto Revision",
+                $"Move workspace to '{targetRevision}'?\nYour current workspace will be snapshotted first to preserve local work.",
+                "Goto",
+                "Cancel"))
+            {
+                return;
+            }
+
+            m_isOperating = true;
+            EditorApplication.LockReloadAssemblies();
+
+            try
+            {
+                EditorUtility.DisplayProgressBar("FlexVault", $"Moving workspace to {targetRevision}...", 0.5f);
+                var result = await FxvRunner.GotoAsync(targetRevision);
+                if (!result.Success)
+                {
+                    EditorUtility.DisplayDialog("Goto Failed", result.ErrorMessage, "OK");
+                }
+                else
+                {
+                    EditorUtility.DisplayDialog("Goto Complete", $"Workspace state moved to '{targetRevision}'.", "OK");
+                }
+            }
+            finally
+            {
+                EditorUtility.ClearProgressBar();
+                AssetDatabase.Refresh();
+                EditorApplication.UnlockReloadAssemblies();
+                m_isOperating = false;
+                FlexVaultStateCache.RefreshAsync();
+            }
+        }
     }
-}
+
+    public class EditorInputDialog : EditorWindow
+    {
+        private string m_prompt;
+        private string m_inputText;
+        private Action<string> m_onConfirm;
+
+        public static string Show(string title, string prompt, string defaultText)
+        {
+            string result = null;
+            var window = CreateInstance<EditorInputDialog>();
+            window.titleContent = new GUIContent(title);
+            window.m_prompt = prompt;
+            window.m_inputText = defaultText ?? "";
+            window.minSize = new Vector2(380, 130);
+            window.maxSize = new Vector2(380, 130);
+            window.m_onConfirm = (val) => result = val;
+            window.ShowModalUtility();
+            return result;
+        }
+
+        private void OnGUI()
+        {
+            GUILayout.Space(10);
+            EditorGUILayout.LabelField(m_prompt, EditorStyles.wordWrappedLabel);
+            GUILayout.Space(5);
+            m_inputText = EditorGUILayout.TextField(m_inputText);
+            GUILayout.Space(15);
+            EditorGUILayout.BeginHorizontal();
+            {
+                GUILayout.FlexibleSpace();
+                if (GUILayout.Button("Cancel", GUILayout.Width(80)))
+                {
+                    Close();
+                }
+                if (GUILayout.Button("OK", GUILayout.Width(80)) || (Event.current.isKey && Event.current.keyCode == KeyCode.Return))
+                {
+                    m_onConfirm?.Invoke(m_inputText);
+                    Close();
+                }
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+    }
