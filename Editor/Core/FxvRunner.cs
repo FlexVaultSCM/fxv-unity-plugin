@@ -196,6 +196,18 @@ namespace FlexVault.VCS.Editor.Core
             return result.Success && !string.IsNullOrEmpty(result.Data?.CurrentUser);
         }
 
+        public static async Task<FxvResult<object>> LoginAsync(string username, CancellationToken ct = default)
+        {
+            var args = new List<string> { "login", username };
+            return await RunCommandAsync<object>(args, ct);
+        }
+
+        public static async Task<FxvResult<object>> LogoutAsync(CancellationToken ct = default)
+        {
+            var args = new List<string> { "logout" };
+            return await RunCommandAsync<object>(args, ct);
+        }
+
         public static async Task<FxvResult<object>> SnapshotAsync(string description, CancellationToken ct = default)
         {
             var args = new List<string> { "snapshot" };

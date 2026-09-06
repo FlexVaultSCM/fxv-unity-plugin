@@ -144,6 +144,9 @@ namespace FlexVault.VCS.Editor.Core
     {
         private string m_testStatus = string.Empty;
         private MessageType m_testMessageType = MessageType.None;
+        private string m_loginUsername = string.Empty;
+        private string m_authStatus = string.Empty;
+        private MessageType m_authMessageType = MessageType.None;
 
         public FlexVaultSettingsProvider(string path, SettingsScope scope) : base(path, scope) { }
 
@@ -201,6 +204,86 @@ namespace FlexVault.VCS.Editor.Core
             {
                 GUILayout.Space(5f);
                 EditorGUILayout.HelpBox(m_testStatus, m_testMessageType);
+            }
+
+            GUILayout.Space(15f);
+            EditorGUILayout.LabelField("User Identity & Authentication", EditorStyles.boldLabel);
+            GUILayout.Space(5f);
+
+            var status = FlexVaultStateCache.LatestStatus;
+            string currentUser = status?.CurrentUser;
+            bool isLoggedIn = !string.IsNullOrEmpty(currentUser);
+
+            if (isLoggedIn)
+            {
+                EditorGUILayout.LabelField("Logged in as:", currentUser, EditorStyles.boldLabel);
+                GUILayout.Space(5f);
+                if (GUILayout.Button("Log Out", GUILayout.Width(120)))
+                {
+                    PerformLogout();
+                }
+            }
+            else
+            {
+                EditorGUILayout.LabelField("Status: Not logged in (commits will require login)", EditorStyles.miniLabel);
+                GUILayout.Space(3f);
+                EditorGUILayout.BeginHorizontal();
+                {
+                    EditorGUILayout.LabelField("Username:", GUILayout.Width(80));
+                    m_loginUsername = EditorGUILayout.TextField(m_loginUsername, GUILayout.Width(200));
+                    GUI.enabled = !string.IsNullOrWhiteSpace(m_loginUsername);
+                    if (GUILayout.Button("Log In", GUILayout.Width(100)))
+                    {
+                        PerformLogin(m_loginUsername.Trim());
+                    }
+                    GUI.enabled = true;
+                }
+                EditorGUILayout.EndHorizontal();
+            }
+
+            if (!string.IsNullOrEmpty(m_authStatus))
+            {
+                GUILayout.Space(5f);
+                EditorGUILayout.HelpBox(m_authStatus, m_authMessageType);
+            }
+        }
+
+        private async void PerformLogin(string username)
+        {
+            m_authStatus = $"Logging in as '{username}'...";
+            m_authMessageType = MessageType.Info;
+
+            var result = await FxvRunner.LoginAsync(username);
+            if (result.Success)
+            {
+                m_authStatus = $"Logged in successfully as '{username}'.";
+                m_authMessageType = MessageType.Info;
+                m_loginUsername = string.Empty;
+                FlexVaultStateCache.RefreshAsync();
+            }
+            else
+            {
+                m_authStatus = $"Login failed: {result.ErrorMessage}";
+                m_authMessageType = MessageType.Error;
+            }
+        }
+
+        private async void PerformLogout()
+        {
+            m_authStatus = "Logging out...";
+            m_authMessageType = MessageType.Info;
+
+            var result = await FxvRunner.LogoutAsync();
+            if (result.Success)
+            {
+                m_authStatus = "Logged out successfully.";
+                m_authMessageType = MessageType.Info;
+                FlexVaultStateCache.RefreshAsync();
+            }
+            else
+            {
+                m_authStatus = $"Logout failed: {result.ErrorMessage}";
+                m_authMessageType = MessageType.Error;
             }
         }
 
