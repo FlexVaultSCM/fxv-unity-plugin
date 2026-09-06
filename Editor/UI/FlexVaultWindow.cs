@@ -380,6 +380,8 @@ namespace FlexVault.VCS.Editor.UI
 
         private async void CreateLocalSnapshot()
         {
+            if (!FlexVaultSafetyGuards.EnsureSafeToMutateWorkspace("Snapshot", promptSaveDirtyScenes: true)) return;
+
             string desc = string.IsNullOrWhiteSpace(m_commitDescription)
                 ? $"Manual draft snapshot at {DateTime.Now:yyyy-MM-dd HH:mm:ss}"
                 : m_commitDescription.Trim();
@@ -421,6 +423,8 @@ namespace FlexVault.VCS.Editor.UI
                 EditorUtility.DisplayDialog("Publish", "Please provide a commit description before publishing.", "OK");
                 return;
             }
+
+            if (!FlexVaultSafetyGuards.EnsureSafeToMutateWorkspace("Publish", promptSaveDirtyScenes: true)) return;
 
             var status = FlexVaultStateCache.LatestStatus;
             if (string.IsNullOrEmpty(status?.CurrentUser))
@@ -486,6 +490,8 @@ namespace FlexVault.VCS.Editor.UI
                 return;
             }
 
+            if (!FlexVaultSafetyGuards.EnsureSafeToMutateWorkspace("Revert", promptSaveDirtyScenes: true)) return;
+
             var expanded = FlexVaultMetaHelper.ExpandWithMeta(m_selectedPaths);
             var repoRelative = new List<string>();
             foreach (var p in expanded)
@@ -537,6 +543,8 @@ namespace FlexVault.VCS.Editor.UI
 
         private async void SyncWorkspace()
         {
+            if (!FlexVaultSafetyGuards.EnsureSafeToMutateWorkspace("Sync", promptSaveDirtyScenes: true)) return;
+
             m_isOperating = true;
             EditorApplication.LockReloadAssemblies();
 
@@ -585,6 +593,8 @@ namespace FlexVault.VCS.Editor.UI
 
         private async void ResolveConflicts(FxvRunner.ResolveAction action, IEnumerable<string> paths)
         {
+            if (!FlexVaultSafetyGuards.EnsureSafeToMutateWorkspace("Resolve Conflicts", promptSaveDirtyScenes: true)) return;
+
             string actionName = action == FxvRunner.ResolveAction.Mine ? "Keep Mine" : "Take Theirs";
             string targetDesc = paths != null ? $"{paths.Count()} file(s)" : "all conflicted files";
 

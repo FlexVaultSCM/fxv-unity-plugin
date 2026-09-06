@@ -69,6 +69,11 @@ namespace FlexVault.VCS.Editor.UI
                 return;
             }
 
+            if (!FlexVaultSafetyGuards.EnsureSafeToMutateWorkspace("Revert", promptSaveDirtyScenes: true))
+            {
+                return;
+            }
+
             EditorApplication.LockReloadAssemblies();
             try
             {
@@ -178,6 +183,11 @@ namespace FlexVault.VCS.Editor.UI
                 $"Resolve {paths.Count} file(s) with action: {actionName}?\nThis will clear the conflict state.",
                 "Resolve",
                 "Cancel"))
+            {
+                return;
+            }
+
+            if (!FlexVaultSafetyGuards.EnsureSafeToMutateWorkspace("Resolve Conflicts", promptSaveDirtyScenes: true))
             {
                 return;
             }
