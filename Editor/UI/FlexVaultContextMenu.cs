@@ -224,6 +224,72 @@ namespace FlexVault.VCS.Editor.UI
             return Selection.assetGUIDs != null && Selection.assetGUIDs.Length > 0 && FlexVaultSettings.IsInFlexVaultRepository();
         }
 
+        [MenuItem(MenuRoot + "Ignore Selected (Add to .gitignore)", false, 150)]
+        public static void IgnoreSelected()
+        {
+            var selectedGuids = Selection.assetGUIDs;
+            if (selectedGuids == null || selectedGuids.Length == 0) return;
+
+            string repoRoot = FlexVaultSettings.GetRepositoryRoot();
+            if (string.IsNullOrEmpty(repoRoot)) return;
+
+            string gitignorePath = System.IO.Path.Combine(repoRoot, ".gitignore");
+            var entriesToAdd = new List<string>();
+
+            foreach (string guid in selectedGuids)
+            {
+                string projectPath = AssetDatabase.GUIDToAssetPath(guid);
+                if (string.IsNullOrEmpty(projectPath)) continue;
+
+                string repoRelative = FlexVaultMetaHelper.ToRepoRelativePath(projectPath);
+                entriesToAdd.Add(repoRelative);
+                entriesToAdd.Add(FlexVaultMetaHelper.GetCompanionMetaPath(repoRelative));
+            }
+
+            if (entriesToAdd.Count == 0) return;
+
+            if (!EditorUtility.DisplayDialog(
+                "Confirm Ignore",
+                $"Add {entriesToAdd.Count / 2} asset(s) and their companion .meta files to .gitignore?",
+                "Ignore",
+                "Cancel"))
+            {
+                return;
+            }
+
+            try
+            {
+                var existing = System.IO.File.Exists(gitignorePath)
+                    ? new HashSet<string>(System.IO.File.ReadAllLines(gitignorePath), StringComparer.OrdinalIgnoreCase)
+                    : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                using (var writer = System.IO.File.AppendText(gitignorePath))
+                {
+                    foreach (var entry in entriesToAdd)
+                    {
+                        if (!existing.Contains(entry))
+                        {
+                            writer.WriteLine(entry);
+                        }
+                    }
+                }
+
+                AssetDatabase.Refresh();
+                FlexVaultStateCache.RefreshAsync();
+                Debug.Log($"[FlexVault] Appended {entriesToAdd.Count} path(s) to {gitignorePath}");
+            }
+            catch (Exception ex)
+            {
+                EditorUtility.DisplayDialog("Ignore Error", ex.Message, "OK");
+            }
+        }
+
+        [MenuItem(MenuRoot + "Ignore Selected (Add to .gitignore)", true)]
+        public static bool ValidateIgnoreSelected()
+        {
+            return Selection.assetGUIDs != null && Selection.assetGUIDs.Length > 0 && FlexVaultSettings.IsInFlexVaultRepository();
+        }
+
         [MenuItem(MenuRoot + "Refresh Status", true)]
         public static bool ValidateRefreshStatus()
         {
