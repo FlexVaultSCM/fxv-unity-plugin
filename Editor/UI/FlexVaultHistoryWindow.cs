@@ -116,11 +116,10 @@ namespace FlexVault.VCS.Editor.UI
                     Color badgeColor = isPublished ? new Color(0.2f, 0.6f, 1f) : new Color(0.85f, 0.5f, 0.1f);
                     string typeLabel = isPublished ? "[Published]" : "[Draft]";
 
-                    var style = new GUIStyle(EditorStyles.miniBoldLabel)
-                    {
-                        normal = { textColor = badgeColor }
-                    };
-                    GUILayout.Label(typeLabel, style, GUILayout.Width(80));
+                    Color prevCol = GUI.contentColor;
+                    GUI.contentColor = badgeColor;
+                    GUILayout.Label(typeLabel, EditorStyles.miniBoldLabel, GUILayout.Width(80));
+                    GUI.contentColor = prevCol;
 
                     GUILayout.Label(entry.RevisionDisplay, EditorStyles.boldLabel, GUILayout.Width(130));
 

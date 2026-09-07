@@ -40,7 +40,7 @@ namespace FlexVault.VCS.Editor.UI
             try
             {
                 bool success = await FxvRunner.CatToFileAsync(repoRelativePath, baseRevision, baseFilePath);
-                if (!success || !File.Exists(baseFilePath) || new FileInfo(baseFilePath).Length == 0)
+                if (!success || !File.Exists(baseFilePath))
                 {
                     EditorUtility.DisplayDialog(
                         "FlexVault Diff",
@@ -109,13 +109,16 @@ namespace FlexVault.VCS.Editor.UI
             try
             {
                 // UnityYAMLMerge merge -p <base> <theirs> <mine> <result>
-                // For a 2-way diff visualization:
+                // We write the merge result to a dummy temporary file so we never clobber the user's working copy!
+                string tempDir = Path.Combine(Path.GetTempPath(), "FlexVaultDiff", Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(tempDir);
+                string tempMergedResult = Path.Combine(tempDir, "merged_output" + Path.GetExtension(localOrRightPath));
+
                 var startInfo = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = yamlMergePath,
-                    Arguments = $"merge -p \"{baseOrLeftPath}\" \"{localOrRightPath}\" \"{localOrRightPath}\" \"{localOrRightPath}\"",
-                    UseShellExecute = false,
-                    CreateNoWindow = true
+                    Arguments = $"merge -p \"{baseOrLeftPath}\" \"{localOrRightPath}\" \"{localOrRightPath}\" \"{tempMergedResult}\"",
+                    UseShellExecute = true
                 };
 
                 var proc = System.Diagnostics.Process.Start(startInfo);

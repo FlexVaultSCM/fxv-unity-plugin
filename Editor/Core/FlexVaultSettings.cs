@@ -252,6 +252,7 @@ namespace FlexVault.VCS.Editor.Core
         {
             m_authStatus = $"Logging in as '{username}'...";
             m_authMessageType = MessageType.Info;
+            SettingsService.NotifySettingsProviderChanged();
 
             var result = await FxvRunner.LoginAsync(username);
             if (result.Success)
@@ -266,12 +267,14 @@ namespace FlexVault.VCS.Editor.Core
                 m_authStatus = $"Login failed: {result.ErrorMessage}";
                 m_authMessageType = MessageType.Error;
             }
+            SettingsService.NotifySettingsProviderChanged();
         }
 
         private async void PerformLogout()
         {
             m_authStatus = "Logging out...";
             m_authMessageType = MessageType.Info;
+            SettingsService.NotifySettingsProviderChanged();
 
             var result = await FxvRunner.LogoutAsync();
             if (result.Success)
@@ -285,12 +288,14 @@ namespace FlexVault.VCS.Editor.Core
                 m_authStatus = $"Logout failed: {result.ErrorMessage}";
                 m_authMessageType = MessageType.Error;
             }
+            SettingsService.NotifySettingsProviderChanged();
         }
 
         private async void TestConnection()
         {
             m_testStatus = "Testing connection to fxv CLI...";
             m_testMessageType = MessageType.Info;
+            SettingsService.NotifySettingsProviderChanged();
 
             var result = await FxvRunner.RunCommandAsync<StatusPayload>(new[] { "status", "--skip-remote-update", "--skip-scan" });
             if (result.Success)
@@ -303,6 +308,7 @@ namespace FlexVault.VCS.Editor.Core
                 m_testStatus = $"Failed to connect: {result.ErrorMessage}";
                 m_testMessageType = MessageType.Error;
             }
+            SettingsService.NotifySettingsProviderChanged();
         }
     }
 }

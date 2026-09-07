@@ -139,38 +139,27 @@ namespace FlexVault.VCS.Editor.UI
 
         private void DrawTabBar()
         {
-            EditorGUILayout.BeginHorizontal();
+            int changedCount = FlexVaultStateCache.LatestStatus?.Files?.Count ?? 0;
+            string changesTitle = changedCount > 0 ? $"Changes ({changedCount})" : "Changes";
+
+            var syncStatus = FlexVaultStateCache.LatestStatus?.SyncStatus;
+            string syncTitle = "Sync";
+            if (syncStatus != null && !syncStatus.UpToDate && syncStatus.RevisionsBehind > 0)
             {
-                int changedCount = FlexVaultStateCache.LatestStatus?.Files?.Count ?? 0;
-                string changesTitle = changedCount > 0 ? $"Changes ({changedCount})" : "Changes";
+                syncTitle = $"Sync ({syncStatus.RevisionsBehind} behind)";
+            }
 
-                if (GUILayout.Toggle(m_currentTab == Tab.Changes, changesTitle, EditorStyles.miniButtonLeft))
-                {
-                    m_currentTab = Tab.Changes;
-                }
+            string[] tabLabels = new[] { changesTitle, syncTitle, "History" };
 
-                var syncStatus = FlexVaultStateCache.LatestStatus?.SyncStatus;
-                string syncTitle = "Sync";
-                if (syncStatus != null && !syncStatus.UpToDate && syncStatus.RevisionsBehind > 0)
+            int newTab = GUILayout.Toolbar((int)m_currentTab, tabLabels);
+            if (newTab != (int)m_currentTab)
+            {
+                m_currentTab = (Tab)newTab;
+                if (m_currentTab == Tab.History)
                 {
-                    syncTitle = $"Sync ({syncStatus.RevisionsBehind} behind)";
-                }
-
-                if (GUILayout.Toggle(m_currentTab == Tab.Sync, syncTitle, EditorStyles.miniButtonMid))
-                {
-                    m_currentTab = Tab.Sync;
-                }
-
-                if (GUILayout.Toggle(m_currentTab == Tab.History, "History", EditorStyles.miniButtonRight))
-                {
-                    if (m_currentTab != Tab.History)
-                    {
-                        m_currentTab = Tab.History;
-                        LoadHistoryEntries();
-                    }
+                    LoadHistoryEntries();
                 }
             }
-            EditorGUILayout.EndHorizontal();
         }
 
         private void DrawChangesTab()
@@ -277,7 +266,7 @@ namespace FlexVault.VCS.Editor.UI
 
                         if (GUILayout.Button("Diff", EditorStyles.miniButton, GUILayout.Width(45)))
                         {
-                            FlexVaultDiffHelper.DiffFileAgainstBaseAsync(item.Path);
+                            _ = FlexVaultDiffHelper.DiffFileAgainstBaseAsync(item.Path);
                         }
                     }
                     EditorGUILayout.EndHorizontal();
@@ -375,13 +364,10 @@ namespace FlexVault.VCS.Editor.UI
                     break;
             }
 
-            var style = new GUIStyle(EditorStyles.miniLabel)
-            {
-                normal = { textColor = color },
-                fontStyle = FontStyle.Bold
-            };
-
-            GUILayout.Label(text, style, GUILayout.Width(80));
+            Color prevCol = GUI.contentColor;
+            GUI.contentColor = color;
+            GUILayout.Label(text, EditorStyles.miniBoldLabel, GUILayout.Width(80));
+            GUI.contentColor = prevCol;
         }
 
         private async void CreateLocalSnapshot()
@@ -527,10 +513,7 @@ namespace FlexVault.VCS.Editor.UI
                 }
                 else
                 {
-                    foreach (var p in m_selectedPaths)
-                    {
-                        m_selectedPaths.Remove(p);
-                    }
+                    m_selectedPaths.Clear();
                 }
             }
             catch (Exception ex)
@@ -644,7 +627,7 @@ namespace FlexVault.VCS.Editor.UI
             if (m_selectedPaths.Count != 1) return;
             foreach (var p in m_selectedPaths)
             {
-                FlexVaultDiffHelper.DiffFileAgainstBaseAsync(p);
+                _ = FlexVaultDiffHelper.DiffFileAgainstBaseAsync(p);
                 break;
             }
         }
@@ -716,9 +699,12 @@ namespace FlexVault.VCS.Editor.UI
                             bool isPublished = entry.Commit?.Type == "published";
                             Color col = isPublished ? new Color(0.2f, 0.6f, 1f) : new Color(0.85f, 0.5f, 0.1f);
                             string tag = isPublished ? "[Published]" : "[Draft]";
-                            var tagStyle = new GUIStyle(EditorStyles.miniBoldLabel) { normal = { textColor = col } };
 
-                            GUILayout.Label(tag, tagStyle, GUILayout.Width(75));
+                            Color prevCol = GUI.contentColor;
+                            GUI.contentColor = col;
+                            GUILayout.Label(tag, EditorStyles.miniBoldLabel, GUILayout.Width(75));
+                            GUI.contentColor = prevCol;
+
                             GUILayout.Label(entry.RevisionDisplay, EditorStyles.boldLabel, GUILayout.Width(110));
                             GUILayout.Label(entry.AuthorDisplayName ?? entry.AuthorId ?? "Unknown", EditorStyles.miniLabel, GUILayout.Width(100));
 
@@ -747,11 +733,13 @@ namespace FlexVault.VCS.Editor.UI
 
         private void PromptGotoRevision()
         {
-            string rev = EditorInputDialog.Show("Goto Revision", "Enter target revision spec to move workspace state to (e.g. main.11 or main.11.2):", "");
-            if (!string.IsNullOrWhiteSpace(rev))
+            EditorInputDialog.Show("Goto Revision", "Enter target revision spec to move workspace state to (e.g. main.11 or main.11.2):", "", (rev) =>
             {
-                ExecuteGoto(rev.Trim());
-            }
+                if (!string.IsNullOrWhiteSpace(rev))
+                {
+                    ExecuteGoto(rev.Trim());
+                }
+            });
         }
 
         private async void ExecuteGoto(string targetRevision)
@@ -790,6 +778,7 @@ namespace FlexVault.VCS.Editor.UI
                 EditorApplication.UnlockReloadAssemblies();
                 m_isOperating = false;
                 FlexVaultStateCache.RefreshAsync();
+                Repaint();
             }
         }
     }
@@ -800,18 +789,16 @@ namespace FlexVault.VCS.Editor.UI
         private string m_inputText;
         private Action<string> m_onConfirm;
 
-        public static string Show(string title, string prompt, string defaultText)
+        public static void Show(string title, string prompt, string defaultText, Action<string> onConfirm)
         {
-            string result = null;
             var window = CreateInstance<EditorInputDialog>();
             window.titleContent = new GUIContent(title);
             window.m_prompt = prompt;
             window.m_inputText = defaultText ?? "";
             window.minSize = new Vector2(380, 130);
             window.maxSize = new Vector2(380, 130);
-            window.m_onConfirm = (val) => result = val;
-            window.ShowModalUtility();
-            return result;
+            window.m_onConfirm = onConfirm;
+            window.ShowUtility();
         }
 
         private void OnGUI()
@@ -837,3 +824,4 @@ namespace FlexVault.VCS.Editor.UI
             EditorGUILayout.EndHorizontal();
         }
     }
+}

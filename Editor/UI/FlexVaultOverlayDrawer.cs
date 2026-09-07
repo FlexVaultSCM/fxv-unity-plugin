@@ -72,23 +72,12 @@ namespace FlexVault.VCS.Editor.UI
             }
 
             bool isListMode = selectionRect.height <= 20f;
-            Rect badgeRect;
+            Rect badgeRect = isListMode
+                ? new Rect(selectionRect.xMax - 15f, selectionRect.y + (selectionRect.height - 13f) * 0.5f, 13f, 13f)
+                : new Rect(selectionRect.xMax - 15f, selectionRect.y + 2f, 14f, 14f);
 
-            if (isListMode)
-            {
-                badgeRect = new Rect(selectionRect.x - 4f, selectionRect.y + (selectionRect.height - 13f) * 0.5f, 13f, 13f);
-            }
-            else
-            {
-                badgeRect = new Rect(selectionRect.x + selectionRect.width - 15f, selectionRect.y + 2f, 14f, 14f);
-            }
-
-            Color prevColor = GUI.color;
-            GUI.color = badgeColor;
-            GUI.Box(badgeRect, GUIContent.none, EditorStyles.helpBox);
-            GUI.color = Color.white;
+            EditorGUI.DrawRect(badgeRect, badgeColor);
             GUI.Label(badgeRect, symbol, s_badgeStyle);
-            GUI.color = prevColor;
         }
     }
 }

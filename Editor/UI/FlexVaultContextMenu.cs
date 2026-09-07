@@ -47,12 +47,7 @@ namespace FlexVault.VCS.Editor.UI
                 return;
             }
 
-            var expandedPaths = FlexVaultMetaHelper.ExpandWithMeta(projectPaths);
-            var repoRelativePaths = new List<string>();
-            foreach (string p in expandedPaths)
-            {
-                repoRelativePaths.Add(FlexVaultMetaHelper.ToRepoRelativePath(p));
-            }
+            var repoRelativePaths = FlexVaultMetaHelper.ExpandWithMeta(projectPaths);
 
             string fileListStr = string.Join("\n", projectPaths);
             if (projectPaths.Count > 5)
@@ -170,12 +165,7 @@ namespace FlexVault.VCS.Editor.UI
             }
             if (paths.Count == 0) return;
 
-            var expanded = FlexVaultMetaHelper.ExpandWithMeta(paths);
-            var repoRelative = new List<string>();
-            foreach (var p in expanded)
-            {
-                repoRelative.Add(FlexVaultMetaHelper.ToRepoRelativePath(p));
-            }
+            var repoRelative = FlexVaultMetaHelper.ExpandWithMeta(paths);
 
             string actionName = action == FxvRunner.ResolveAction.Mine ? "Keep Mine" : "Take Theirs";
             if (!EditorUtility.DisplayDialog(
@@ -224,7 +214,7 @@ namespace FlexVault.VCS.Editor.UI
             return Selection.assetGUIDs != null && Selection.assetGUIDs.Length > 0 && FlexVaultSettings.IsInFlexVaultRepository();
         }
 
-        [MenuItem(MenuRoot + "Ignore Selected (Add to .gitignore)", false, 150)]
+        [MenuItem(MenuRoot + "Ignore Selected (Add to .fxvignore)", false, 150)]
         public static void IgnoreSelected()
         {
             var selectedGuids = Selection.assetGUIDs;
@@ -233,6 +223,7 @@ namespace FlexVault.VCS.Editor.UI
             string repoRoot = FlexVaultSettings.GetRepositoryRoot();
             if (string.IsNullOrEmpty(repoRoot)) return;
 
+            string fxvignorePath = System.IO.Path.Combine(repoRoot, ".fxvignore");
             string gitignorePath = System.IO.Path.Combine(repoRoot, ".gitignore");
             var entriesToAdd = new List<string>();
 
@@ -250,7 +241,7 @@ namespace FlexVault.VCS.Editor.UI
 
             if (!EditorUtility.DisplayDialog(
                 "Confirm Ignore",
-                $"Add {entriesToAdd.Count / 2} asset(s) and their companion .meta files to .gitignore?",
+                $"Add {entriesToAdd.Count / 2} asset(s) and their companion .meta files to .fxvignore?",
                 "Ignore",
                 "Cancel"))
             {
@@ -259,24 +250,15 @@ namespace FlexVault.VCS.Editor.UI
 
             try
             {
-                var existing = System.IO.File.Exists(gitignorePath)
-                    ? new HashSet<string>(System.IO.File.ReadAllLines(gitignorePath), StringComparer.OrdinalIgnoreCase)
-                    : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                using (var writer = System.IO.File.AppendText(gitignorePath))
+                AppendUniqueLines(fxvignorePath, entriesToAdd);
+                if (System.IO.File.Exists(gitignorePath))
                 {
-                    foreach (var entry in entriesToAdd)
-                    {
-                        if (!existing.Contains(entry))
-                        {
-                            writer.WriteLine(entry);
-                        }
-                    }
+                    AppendUniqueLines(gitignorePath, entriesToAdd);
                 }
 
                 AssetDatabase.Refresh();
                 FlexVaultStateCache.RefreshAsync();
-                Debug.Log($"[FlexVault] Appended {entriesToAdd.Count} path(s) to {gitignorePath}");
+                Debug.Log($"[FlexVault] Appended {entriesToAdd.Count} path(s) to .fxvignore");
             }
             catch (Exception ex)
             {
@@ -284,7 +266,26 @@ namespace FlexVault.VCS.Editor.UI
             }
         }
 
-        [MenuItem(MenuRoot + "Ignore Selected (Add to .gitignore)", true)]
+        private static void AppendUniqueLines(string filePath, IEnumerable<string> lines)
+        {
+            var existing = System.IO.File.Exists(filePath)
+                ? new HashSet<string>(System.IO.File.ReadAllLines(filePath), StringComparer.OrdinalIgnoreCase)
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            using (var writer = System.IO.File.AppendText(filePath))
+            {
+                foreach (var line in lines)
+                {
+                    if (!existing.Contains(line))
+                    {
+                        writer.WriteLine(line);
+                        existing.Add(line);
+                    }
+                }
+            }
+        }
+
+        [MenuItem(MenuRoot + "Ignore Selected (Add to .fxvignore)", true)]
         public static bool ValidateIgnoreSelected()
         {
             return Selection.assetGUIDs != null && Selection.assetGUIDs.Length > 0 && FlexVaultSettings.IsInFlexVaultRepository();

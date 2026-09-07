@@ -70,10 +70,13 @@ namespace FlexVault.VCS.Editor.Core
             }
         }
 
+        private static bool s_refreshPending;
+
         public static async void RefreshAsync(bool skipScan = false)
         {
             if (s_isRefreshing)
             {
+                s_refreshPending = true;
                 return;
             }
 
@@ -83,7 +86,10 @@ namespace FlexVault.VCS.Editor.Core
                 var result = await FxvRunner.GetStatusAsync(skipScan);
                 if (result.Success && result.Data != null)
                 {
-                    UpdateCache(result.Data);
+                    EditorApplication.delayCall += () =>
+                    {
+                        UpdateCache(result.Data);
+                    };
                 }
             }
             catch (Exception ex)
@@ -94,6 +100,12 @@ namespace FlexVault.VCS.Editor.Core
             {
                 s_isRefreshing = false;
                 s_lastRefreshTime = EditorApplication.timeSinceStartup;
+
+                if (s_refreshPending)
+                {
+                    s_refreshPending = false;
+                    EditorApplication.delayCall += () => RefreshAsync(skipScan);
+                }
             }
         }
 
@@ -115,13 +127,29 @@ namespace FlexVault.VCS.Editor.Core
                     newPathMap[normalized] = file;
 
                     string projectRelative = FlexVaultMetaHelper.ToProjectRelativePath(normalized);
-                    if (!string.IsNullOrEmpty(projectRelative) && (projectRelative.StartsWith("Assets/") || projectRelative.Equals("Assets", StringComparison.OrdinalIgnoreCase)))
+                    if (!string.IsNullOrEmpty(projectRelative))
                     {
-                        string logicalAsset = FlexVaultMetaHelper.GetLogicalAssetPath(projectRelative);
-                        string guid = AssetDatabase.AssetPathToGUID(logicalAsset);
-                        if (!string.IsNullOrEmpty(guid))
+                        bool isTrackedPrefix = projectRelative.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase)
+                            || projectRelative.Equals("Assets", StringComparison.OrdinalIgnoreCase)
+                            || projectRelative.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase);
+
+                        if (isTrackedPrefix)
                         {
-                            newGuidMap[guid] = file.EffectiveState;
+                            string logicalAsset = FlexVaultMetaHelper.GetLogicalAssetPath(projectRelative);
+                            string guid = AssetDatabase.AssetPathToGUID(logicalAsset);
+                            if (!string.IsNullOrEmpty(guid))
+                            {
+                                string newState = file.EffectiveState;
+                                if (newGuidMap.TryGetValue(guid, out string existingState))
+                                {
+                                    if (existingState.Equals("conflicted", StringComparison.OrdinalIgnoreCase) ||
+                                        (newState.Equals("unchanged", StringComparison.OrdinalIgnoreCase) && !existingState.Equals("unchanged", StringComparison.OrdinalIgnoreCase)))
+                                    {
+                                        continue;
+                                    }
+                                }
+                                newGuidMap[guid] = newState;
+                            }
                         }
                     }
                 }
@@ -143,11 +171,8 @@ namespace FlexVault.VCS.Editor.Core
                 }
             }
 
-            EditorApplication.delayCall += () =>
-            {
-                OnStateChanged?.Invoke();
-                EditorApplication.RepaintProjectWindow();
-            };
+            OnStateChanged?.Invoke();
+            EditorApplication.RepaintProjectWindow();
         }
     }
 }

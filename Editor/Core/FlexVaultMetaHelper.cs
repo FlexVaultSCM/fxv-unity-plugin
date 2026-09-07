@@ -46,15 +46,39 @@ namespace FlexVault.VCS.Editor.Core
             return normalized;
         }
 
-        public static string ToAbsolutePath(string repoRelativePath)
+        public static string ToAbsolutePath(string projectOrRepoRelativePath)
         {
-            if (string.IsNullOrEmpty(repoRelativePath))
+            if (string.IsNullOrEmpty(projectOrRepoRelativePath))
             {
                 return FlexVaultSettings.GetRepositoryRoot();
             }
 
+            string normalized = NormalizeSeparators(projectOrRepoRelativePath);
+            if (Path.IsPathRooted(normalized))
+            {
+                return normalized;
+            }
+
+            string projectRoot = NormalizeSeparators(Path.GetFullPath(Path.Combine(Application.dataPath, "..")));
+            string fullProjectPath = NormalizeSeparators(Path.Combine(projectRoot, normalized));
+            if (File.Exists(fullProjectPath) || Directory.Exists(fullProjectPath) || File.Exists(fullProjectPath + ".meta"))
+            {
+                return fullProjectPath;
+            }
+
             string repoRoot = FlexVaultSettings.GetRepositoryRoot();
-            return NormalizeSeparators(Path.Combine(repoRoot, repoRelativePath));
+            string fullRepoPath = NormalizeSeparators(Path.Combine(repoRoot, normalized));
+            if (File.Exists(fullRepoPath) || Directory.Exists(fullRepoPath) || File.Exists(fullRepoPath + ".meta"))
+            {
+                return fullRepoPath;
+            }
+
+            if (normalized.StartsWith("Assets", StringComparison.OrdinalIgnoreCase) || normalized.StartsWith("Packages", StringComparison.OrdinalIgnoreCase))
+            {
+                return fullProjectPath;
+            }
+
+            return fullRepoPath;
         }
 
         public static string ToProjectRelativePath(string repoRelativePath)
@@ -122,35 +146,43 @@ namespace FlexVault.VCS.Editor.Core
                 return new List<string>();
             }
 
-            foreach (string path in paths)
+            foreach (string rawPath in paths)
             {
-                if (string.IsNullOrWhiteSpace(path))
+                if (string.IsNullOrWhiteSpace(rawPath))
                 {
                     continue;
                 }
 
-                string normalized = NormalizeSeparators(path);
-                string absolute = ToAbsolutePath(normalized);
+                string absolute = ToAbsolutePath(rawPath);
+                string repoRelative = ToRepoRelativePath(absolute);
 
                 if (Directory.Exists(absolute))
                 {
-                    result.Add(normalized);
-                    result.Add(GetCompanionMetaPath(normalized));
+                    result.Add(repoRelative);
+                    result.Add(GetCompanionMetaPath(repoRelative));
 
                     try
                     {
+                        var dirs = Directory.GetDirectories(absolute, "*", SearchOption.AllDirectories);
+                        foreach (var d in dirs)
+                        {
+                            string dirRepoRel = ToRepoRelativePath(d);
+                            result.Add(dirRepoRel);
+                            result.Add(GetCompanionMetaPath(dirRepoRel));
+                        }
+
                         var files = Directory.GetFiles(absolute, "*", SearchOption.AllDirectories);
                         foreach (var f in files)
                         {
-                            string normF = NormalizeSeparators(f);
-                            result.Add(normF);
-                            if (IsMetaFile(normF))
+                            string fileRepoRel = ToRepoRelativePath(f);
+                            result.Add(fileRepoRel);
+                            if (IsMetaFile(fileRepoRel))
                             {
-                                result.Add(GetLogicalAssetPath(normF));
+                                result.Add(GetLogicalAssetPath(fileRepoRel));
                             }
                             else
                             {
-                                result.Add(GetCompanionMetaPath(normF));
+                                result.Add(GetCompanionMetaPath(fileRepoRel));
                             }
                         }
                     }
@@ -161,16 +193,16 @@ namespace FlexVault.VCS.Editor.Core
                 }
                 else
                 {
-                    result.Add(normalized);
+                    result.Add(repoRelative);
 
-                    if (IsMetaFile(normalized))
+                    if (IsMetaFile(repoRelative))
                     {
-                        string baseAsset = GetLogicalAssetPath(normalized);
+                        string baseAsset = GetLogicalAssetPath(repoRelative);
                         result.Add(baseAsset);
                     }
                     else
                     {
-                        string meta = GetCompanionMetaPath(normalized);
+                        string meta = GetCompanionMetaPath(repoRelative);
                         result.Add(meta);
                     }
                 }

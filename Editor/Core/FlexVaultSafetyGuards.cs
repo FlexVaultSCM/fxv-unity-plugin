@@ -17,6 +17,15 @@ namespace FlexVault.VCS.Editor.Core
                 return false;
             }
 
+            if (EditorApplication.isCompiling)
+            {
+                EditorUtility.DisplayDialog(
+                    $"{operationName} Blocked",
+                    $"Cannot perform '{operationName}' while the Unity Editor is compiling scripts.\nPlease wait for compilation to finish before modifying workspace files.",
+                    "OK");
+                return false;
+            }
+
             if (promptSaveDirtyScenes)
             {
                 bool saved = EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo();
@@ -26,6 +35,7 @@ namespace FlexVault.VCS.Editor.Core
                 }
             }
 
+            AssetDatabase.SaveAssets();
             return true;
         }
     }

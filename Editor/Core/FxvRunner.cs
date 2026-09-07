@@ -22,7 +22,7 @@ namespace FlexVault.VCS.Editor.Core
 
     public static class FxvRunner
     {
-        private static readonly object s_processLock = new object();
+        private static readonly SemaphoreSlim s_processSemaphore = new SemaphoreSlim(1, 1);
 
         public static async Task<FxvResult<T>> RunCommandAsync<T>(
             IEnumerable<string> args,
@@ -41,7 +41,10 @@ namespace FlexVault.VCS.Editor.Core
             }
 
             var fullArgs = new List<string>(args);
-            if (!fullArgs.Contains("--format"))
+            string primaryCommand = fullArgs.Count > 0 ? fullArgs[0].ToLowerInvariant() : string.Empty;
+            bool isJsonCommand = primaryCommand != "snapshot" && primaryCommand != "publish";
+
+            if (isJsonCommand && !fullArgs.Contains("--format"))
             {
                 fullArgs.Add("--format");
                 fullArgs.Add("json");
@@ -70,112 +73,128 @@ namespace FlexVault.VCS.Editor.Core
                 StandardErrorEncoding = Encoding.UTF8
             };
 
-            return await Task.Run(() =>
+            await s_processSemaphore.WaitAsync(cancellationToken);
+            try
             {
-                var stdoutBuilder = new StringBuilder();
-                var stderrBuilder = new StringBuilder();
-
-                using (var process = new Process { StartInfo = startInfo })
+                return await Task.Run(() =>
                 {
-                    process.OutputDataReceived += (_, e) =>
-                    {
-                        if (e.Data != null) stdoutBuilder.AppendLine(e.Data);
-                    };
-                    process.ErrorDataReceived += (_, e) =>
-                    {
-                        if (e.Data != null) stderrBuilder.AppendLine(e.Data);
-                    };
+                    var stdoutBuilder = new StringBuilder();
+                    var stderrBuilder = new StringBuilder();
 
-                    try
+                    using (var process = new Process { StartInfo = startInfo })
                     {
-                        process.Start();
-                    }
-                    catch (Exception ex)
-                    {
-                        result.Success = false;
-                        result.ErrorMessage = $"Failed to start fxv process ({binaryPath}): {ex.Message}";
-                        return result;
-                    }
-
-                    process.BeginOutputReadLine();
-                    process.BeginErrorReadLine();
-
-                    bool exited = false;
-                    var sw = Stopwatch.StartNew();
-
-                    while (!exited)
-                    {
-                        if (cancellationToken.IsCancellationRequested)
+                        process.OutputDataReceived += (_, e) =>
                         {
-                            try { process.Kill(); } catch { /* Ignore if already exited */ }
-                            result.Success = false;
-                            result.ErrorMessage = "Operation was canceled.";
-                            return result;
-                        }
-
-                        if (sw.ElapsedMilliseconds > timeoutMs)
+                            if (e.Data != null) stdoutBuilder.AppendLine(e.Data);
+                        };
+                        process.ErrorDataReceived += (_, e) =>
                         {
-                            try { process.Kill(); } catch { /* Ignore */ }
-                            result.Success = false;
-                            result.ErrorMessage = $"Operation timed out after {timeoutMs / 1000} seconds.";
-                            return result;
-                        }
+                            if (e.Data != null) stderrBuilder.AppendLine(e.Data);
+                        };
 
-                        exited = process.WaitForExit(100);
-                    }
-
-                    result.ExitCode = process.ExitCode;
-                    result.RawStdout = stdoutBuilder.ToString().Trim();
-                    result.RawStderr = stderrBuilder.ToString().Trim();
-
-                    if (!string.IsNullOrWhiteSpace(result.RawStdout))
-                    {
                         try
                         {
-                            var envelope = JsonConvert.DeserializeObject<OutputEnvelope<T>>(result.RawStdout);
-                            if (envelope != null && envelope.Message != null)
-                            {
-                                if (envelope.Message.Kind == "error")
-                                {
-                                    var errorEnvelope = JsonConvert.DeserializeObject<OutputEnvelope<ErrorPayload>>(result.RawStdout);
-                                    result.Success = false;
-                                    result.ErrorMessage = errorEnvelope?.Message?.Payload?.Message ?? "FlexVault CLI returned an error.";
-                                    return result;
-                                }
-
-                                result.Success = (result.ExitCode == 0);
-                                result.Data = envelope.Message.Payload;
-                                return result;
-                            }
+                            process.Start();
                         }
-                        catch (Exception parseEx)
+                        catch (Exception ex)
                         {
-                            if (result.ExitCode != 0)
-                            {
-                                result.Success = false;
-                                result.ErrorMessage = !string.IsNullOrEmpty(result.RawStderr) ? result.RawStderr : $"Exit code {result.ExitCode}: {result.RawStdout}";
-                                return result;
-                            }
-
                             result.Success = false;
-                            result.ErrorMessage = $"Failed to parse CLI JSON response: {parseEx.Message}\nRaw: {result.RawStdout}";
+                            result.ErrorMessage = $"Failed to start fxv process ({binaryPath}): {ex.Message}";
                             return result;
                         }
-                    }
 
-                    if (result.ExitCode == 0)
-                    {
-                        result.Success = true;
-                    }
-                    else
-                    {
-                        result.Success = false;
-                        result.ErrorMessage = !string.IsNullOrEmpty(result.RawStderr) ? result.RawStderr : $"Command failed with exit code {result.ExitCode}.";
-                    }
+                        process.BeginOutputReadLine();
+                        process.BeginErrorReadLine();
 
-                    return result;
-                }
-            });
+                        bool exited = false;
+                        var sw = Stopwatch.StartNew();
+
+                        while (!exited)
+                        {
+                            if (cancellationToken.IsCancellationRequested)
+                            {
+                                try { process.Kill(); } catch { /* Ignore if already exited */ }
+                                result.Success = false;
+                                result.ErrorMessage = "Operation was canceled.";
+                                return result;
+                            }
+
+                            if (sw.ElapsedMilliseconds > timeoutMs)
+                            {
+                                try { process.Kill(); } catch { /* Ignore */ }
+                                result.Success = false;
+                                result.ErrorMessage = $"Operation timed out after {timeoutMs / 1000} seconds.";
+                                return result;
+                            }
+
+                            exited = process.WaitForExit(100);
+                        }
+
+                        process.WaitForExit();
+
+                        result.ExitCode = process.ExitCode;
+                        result.RawStdout = stdoutBuilder.ToString().Trim();
+                        result.RawStderr = stderrBuilder.ToString().Trim();
+
+                        if (!string.IsNullOrWhiteSpace(result.RawStdout))
+                        {
+                            if (result.RawStdout.StartsWith("{"))
+                            {
+                                try
+                                {
+                                    var envelope = JsonConvert.DeserializeObject<OutputEnvelope<T>>(result.RawStdout);
+                                    if (envelope != null && envelope.Message != null)
+                                    {
+                                        if (envelope.Message.Kind == "error")
+                                        {
+                                            var errorEnvelope = JsonConvert.DeserializeObject<OutputEnvelope<ErrorPayload>>(result.RawStdout);
+                                            result.Success = false;
+                                            result.ErrorMessage = errorEnvelope?.Message?.Payload?.Message ?? "FlexVault CLI returned an error.";
+                                            return result;
+                                        }
+
+                                        result.Success = (result.ExitCode == 0);
+                                        result.Data = envelope.Message.Payload;
+                                        return result;
+                                    }
+                                }
+                                catch (Exception parseEx)
+                                {
+                                    if (result.ExitCode != 0)
+                                    {
+                                        result.Success = false;
+                                        result.ErrorMessage = !string.IsNullOrEmpty(result.RawStderr) ? result.RawStderr : $"Exit code {result.ExitCode}: {result.RawStdout}";
+                                        return result;
+                                    }
+
+                                    if (typeof(T) != typeof(object) && typeof(T) != typeof(string))
+                                    {
+                                        result.Success = false;
+                                        result.ErrorMessage = $"Failed to parse CLI JSON response: {parseEx.Message}\nRaw: {result.RawStdout}";
+                                        return result;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (result.ExitCode == 0)
+                        {
+                            result.Success = true;
+                        }
+                        else
+                        {
+                            result.Success = false;
+                            result.ErrorMessage = !string.IsNullOrEmpty(result.RawStderr) ? result.RawStderr : $"Command failed with exit code {result.ExitCode}: {result.RawStdout}";
+                        }
+
+                        return result;
+                    }
+                });
+            }
+            finally
+            {
+                s_processSemaphore.Release();
+            }
         }
 
         public static async Task<FxvResult<StatusPayload>> GetStatusAsync(bool skipScan = false, CancellationToken ct = default)
@@ -249,6 +268,13 @@ namespace FlexVault.VCS.Editor.Core
             return await RunCommandAsync<WorkspaceSyncPayload>(args, ct);
         }
 
+        public enum ResolveAction
+        {
+            Mine,
+            Theirs,
+            Undo
+        }
+
         public static async Task<FxvResult<WorkspaceSyncPayload>> RevertAsync(IEnumerable<string> repoRelativePaths, CancellationToken ct = default)
         {
             var args = new List<string> { "revert" };
@@ -260,11 +286,7 @@ namespace FlexVault.VCS.Editor.Core
                 }
             }
 
-        public enum ResolveAction
-        {
-            Mine,
-            Theirs,
-            Undo
+            return await RunCommandAsync<WorkspaceSyncPayload>(args, ct);
         }
 
         public static async Task<FxvResult<WorkspaceSyncPayload>> ResolveAsync(
@@ -332,6 +354,12 @@ namespace FlexVault.VCS.Editor.Core
             string binaryPath = FlexVaultSettings.GetEffectiveBinaryPath();
             string workingDir = FlexVaultSettings.GetRepositoryRoot();
 
+            if (string.IsNullOrEmpty(binaryPath))
+            {
+                UnityEngine.Debug.LogError("[FlexVault] CatToFileAsync failed: fxv binary path could not be resolved.");
+                return false;
+            }
+
             var catArgs = new List<string> { "cat", repoRelativePath };
             if (!string.IsNullOrEmpty(revision))
             {
@@ -352,30 +380,86 @@ namespace FlexVault.VCS.Editor.Core
                 CreateNoWindow = true
             };
 
-            return await Task.Run(() =>
+            await s_processSemaphore.WaitAsync(ct);
+            try
             {
-                try
+                return await Task.Run(() =>
                 {
-                    string dir = Path.GetDirectoryName(destinationFilePath);
-                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                    string tempFile = destinationFilePath + ".tmp_" + Guid.NewGuid().ToString("N");
+                    try
                     {
-                        Directory.CreateDirectory(dir);
-                    }
+                        string dir = Path.GetDirectoryName(destinationFilePath);
+                        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                        {
+                            Directory.CreateDirectory(dir);
+                        }
 
-                    using (var process = Process.Start(startInfo))
-                    using (var outputStream = File.Create(destinationFilePath))
-                    {
-                        process.StandardOutput.BaseStream.CopyTo(outputStream);
-                        process.WaitForExit(30000);
-                        return process.ExitCode == 0;
+                        using (var process = new Process { StartInfo = startInfo })
+                        {
+                            var stderrBuilder = new StringBuilder();
+                            process.ErrorDataReceived += (_, e) =>
+                            {
+                                if (e.Data != null) stderrBuilder.AppendLine(e.Data);
+                            };
+
+                            if (!process.Start())
+                            {
+                                return false;
+                            }
+
+                            process.BeginErrorReadLine();
+
+                            using (var outputStream = File.Create(tempFile))
+                            {
+                                process.StandardOutput.BaseStream.CopyTo(outputStream);
+                            }
+
+                            bool exited = process.WaitForExit(30000);
+                            if (!exited)
+                            {
+                                try { process.Kill(); } catch { }
+                                return false;
+                            }
+
+                            process.WaitForExit();
+
+                            if (process.ExitCode == 0 && !ct.IsCancellationRequested)
+                            {
+                                if (File.Exists(destinationFilePath))
+                                {
+                                    File.Delete(destinationFilePath);
+                                }
+                                File.Move(tempFile, destinationFilePath);
+                                return true;
+                            }
+                            else
+                            {
+                                if (stderrBuilder.Length > 0)
+                                {
+                                    UnityEngine.Debug.LogWarning($"[FlexVault] cat command exited with code {process.ExitCode}: {stderrBuilder}");
+                                }
+                                return false;
+                            }
+                        }
                     }
-                }
-                catch (Exception ex)
-                {
-                    UnityEngine.Debug.LogError($"[FlexVault] CatToFileAsync failed: {ex.Message}");
-                    return false;
-                }
-            });
+                    catch (Exception ex)
+                    {
+                        UnityEngine.Debug.LogError($"[FlexVault] CatToFileAsync failed: {ex.Message}");
+                        return false;
+                    }
+                    finally
+                    {
+                        if (File.Exists(tempFile))
+                        {
+                            try { File.Delete(tempFile); } catch { }
+                        }
+                    }
+                });
+            }
+            finally
+            {
+                s_processSemaphore.Release();
+            }
         }
 
         private static string FormatArguments(IEnumerable<string> args)
