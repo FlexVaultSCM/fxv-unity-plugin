@@ -365,7 +365,8 @@ namespace FlexVault.VCS.Editor.Core
             string revision,
             string destinationFilePath,
             CancellationToken ct = default,
-            string customBinaryPath = null)
+            string customBinaryPath = null,
+            int timeoutMs = 30000)
         {
             string binaryPath = !string.IsNullOrEmpty(customBinaryPath) ? customBinaryPath : FlexVaultSettings.GetEffectiveBinaryPath();
             string workingDir = FlexVaultSettings.GetRepositoryRoot();
@@ -399,7 +400,7 @@ namespace FlexVault.VCS.Editor.Core
             await s_processSemaphore.WaitAsync(ct);
             try
             {
-                return await Task.Run(() =>
+                return await Task.Run(async () =>
                 {
                     string tempFile = destinationFilePath + ".tmp_" + Guid.NewGuid().ToString("N");
                     try
@@ -418,19 +419,39 @@ namespace FlexVault.VCS.Editor.Core
                                 if (e.Data != null) stderrBuilder.AppendLine(e.Data);
                             };
 
-                            if (!process.Start())
+                            try
                             {
+                                if (!process.Start())
+                                {
+                                    return false;
+                                }
+                            }
+                            catch (Exception startEx)
+                            {
+                                UnityEngine.Debug.LogError($"[FlexVault] CatToFileAsync failed: could not start fxv ({binaryPath}): {startEx.Message}");
                                 return false;
                             }
 
                             process.BeginErrorReadLine();
 
-                            using (var outputStream = File.Create(tempFile))
+                            using (var timeoutCts = new CancellationTokenSource(timeoutMs))
+                            using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token))
                             {
-                                process.StandardOutput.BaseStream.CopyTo(outputStream);
+                                try
+                                {
+                                    using (var outputStream = File.Create(tempFile))
+                                    {
+                                        await process.StandardOutput.BaseStream.CopyToAsync(outputStream, 81920, linkedCts.Token);
+                                    }
+                                }
+                                catch (OperationCanceledException)
+                                {
+                                    try { process.Kill(); } catch { }
+                                    return false;
+                                }
                             }
 
-                            bool exited = process.WaitForExit(30000);
+                            bool exited = process.WaitForExit(5000);
                             if (!exited)
                             {
                                 try { process.Kill(); } catch { }
