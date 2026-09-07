@@ -31,12 +31,27 @@ namespace FlexVault.VCS.Editor.UI
                     ? $"{status.CurrentBranch}.{status.SyncStatus.SyncedRevision.Value}"
                     : status.SyncStatus.SyncedRevision.Value.ToString();
             }
+            else if (status?.HeadCommit?.PublishedHead?.Commit?.Revision != null)
+            {
+                baseRevision = status.CurrentBranch != null
+                    ? $"{status.CurrentBranch}.{status.HeadCommit.PublishedHead.Commit.Revision.Value}"
+                    : status.HeadCommit.PublishedHead.Commit.Revision.Value.ToString();
+            }
+
+            if (string.IsNullOrEmpty(baseRevision))
+            {
+                EditorUtility.DisplayDialog(
+                    "FlexVault Diff",
+                    $"No published base revision available to compare '{repoRelativePath}' against.\nThe file may be newly added in an unparented draft or new branch.",
+                    "OK");
+                return;
+            }
 
             string tempDir = Path.Combine(Path.GetTempPath(), "FlexVaultDiff", Guid.NewGuid().ToString("N"));
             string fileName = Path.GetFileName(repoRelativePath);
             string baseFilePath = Path.Combine(tempDir, $"base_{fileName}");
 
-            EditorUtility.DisplayProgressBar("FlexVault Diff", "Fetching published base revision...", 0.5f);
+            EditorUtility.DisplayProgressBar("FlexVault Diff", $"Fetching published base revision ({baseRevision})...", 0.5f);
             try
             {
                 bool success = await FxvRunner.CatToFileAsync(repoRelativePath, baseRevision, baseFilePath);
@@ -44,7 +59,7 @@ namespace FlexVault.VCS.Editor.UI
                 {
                     EditorUtility.DisplayDialog(
                         "FlexVault Diff",
-                        $"Could not extract base revision for '{repoRelativePath}'.\nThe file may be newly added or unchanged in the repository.",
+                        $"Could not extract base revision ({baseRevision}) for '{repoRelativePath}'.\nThe file may be newly added in this revision.",
                         "OK");
                     return;
                 }
@@ -63,17 +78,24 @@ namespace FlexVault.VCS.Editor.UI
 
         public static void OpenDiff(string leftPath, string rightPath)
         {
-            string ext = Path.GetExtension(rightPath)?.ToLowerInvariant();
-            bool isUnityYaml = ext == ".unity" || ext == ".prefab" || ext == ".asset" || ext == ".mat";
-
-            if (isUnityYaml)
+            // Try custom diff tool configured via environment variable
+            string customDiffTool = Environment.GetEnvironmentVariable("FXV_DIFF_TOOL") ?? Environment.GetEnvironmentVariable("DIFF");
+            if (!string.IsNullOrEmpty(customDiffTool))
             {
-                if (TryLaunchUnityYamlMerge(leftPath, rightPath))
+                try
                 {
-                    return;
+                    var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = customDiffTool,
+                        Arguments = $"\"{leftPath}\" \"{rightPath}\"",
+                        UseShellExecute = true
+                    });
+                    if (p != null) return;
                 }
+                catch { }
             }
 
+            // Try Visual Studio Code
             try
             {
                 string codePath = FindExecutableOnPath("code") ?? FindExecutableOnPath("code.cmd");
@@ -88,69 +110,28 @@ namespace FlexVault.VCS.Editor.UI
                     if (p != null) return;
                 }
             }
-            catch
-            {
-                // Fall back
-            }
+            catch { }
 
-            // Fallback: Open both files with default app
-            EditorUtility.OpenWithDefaultApp(leftPath);
-            EditorUtility.OpenWithDefaultApp(rightPath);
-        }
-
-        private static bool TryLaunchUnityYamlMerge(string baseOrLeftPath, string localOrRightPath)
-        {
-            string yamlMergePath = FindUnityYamlMerge();
-            if (string.IsNullOrEmpty(yamlMergePath) || !File.Exists(yamlMergePath))
-            {
-                return false;
-            }
-
+            // Try JetBrains Rider
             try
             {
-                // UnityYAMLMerge merge -p <base> <theirs> <mine> <result>
-                // We write the merge result to a dummy temporary file so we never clobber the user's working copy!
-                string tempDir = Path.Combine(Path.GetTempPath(), "FlexVaultDiff", Guid.NewGuid().ToString("N"));
-                Directory.CreateDirectory(tempDir);
-                string tempMergedResult = Path.Combine(tempDir, "merged_output" + Path.GetExtension(localOrRightPath));
-
-                var startInfo = new System.Diagnostics.ProcessStartInfo
+                string riderPath = FindExecutableOnPath("rider64.exe") ?? FindExecutableOnPath("rider");
+                if (!string.IsNullOrEmpty(riderPath))
                 {
-                    FileName = yamlMergePath,
-                    Arguments = $"merge -p \"{baseOrLeftPath}\" \"{localOrRightPath}\" \"{localOrRightPath}\" \"{tempMergedResult}\"",
-                    UseShellExecute = true
-                };
-
-                var proc = System.Diagnostics.Process.Start(startInfo);
-                return proc != null;
+                    var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = riderPath,
+                        Arguments = $"diff \"{leftPath}\" \"{rightPath}\"",
+                        UseShellExecute = true
+                    });
+                    if (p != null) return;
+                }
             }
-            catch
-            {
-                return false;
-            }
-        }
+            catch { }
 
-        private static string FindUnityYamlMerge()
-        {
-            string appContents = EditorApplication.applicationContentsPath;
-            if (Application.platform == RuntimePlatform.WindowsEditor)
-            {
-                string candidate = Path.Combine(appContents, "Tools", "UnityYAMLMerge.exe");
-                if (File.Exists(candidate)) return candidate;
-
-                string editorDir = Path.GetDirectoryName(EditorApplication.applicationPath);
-                candidate = Path.Combine(editorDir, "Data", "Tools", "UnityYAMLMerge.exe");
-                if (File.Exists(candidate)) return candidate;
-            }
-            else
-            {
-                string candidate = Path.Combine(appContents, "Helpers", "UnityYAMLMerge");
-                if (File.Exists(candidate)) return candidate;
-
-                candidate = Path.Combine(appContents, "Tools", "UnityYAMLMerge");
-                if (File.Exists(candidate)) return candidate;
-            }
-            return null;
+            // Fallback: Open both files with default system app
+            EditorUtility.OpenWithDefaultApp(leftPath);
+            EditorUtility.OpenWithDefaultApp(rightPath);
         }
 
         private static string FindExecutableOnPath(string exeName)
@@ -159,11 +140,14 @@ namespace FlexVault.VCS.Editor.UI
             if (string.IsNullOrEmpty(pathEnv)) return null;
 
             char separator = Application.platform == RuntimePlatform.WindowsEditor ? ';' : ':';
-            foreach (string part in pathEnv.Split(new[] { separator }, StringSplitOptions.RemoveEmptyEntries))
+            foreach (string rawPart in pathEnv.Split(new[] { separator }, StringSplitOptions.RemoveEmptyEntries))
             {
                 try
                 {
-                    string candidate = Path.Combine(part.Trim(), exeName);
+                    string part = rawPart.Trim().Trim('"');
+                    if (string.IsNullOrEmpty(part)) continue;
+
+                    string candidate = Path.Combine(part, exeName);
                     if (File.Exists(candidate)) return candidate;
                     if (Application.platform == RuntimePlatform.WindowsEditor && !candidate.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && !candidate.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase))
                     {
