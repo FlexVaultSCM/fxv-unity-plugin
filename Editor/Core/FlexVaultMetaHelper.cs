@@ -158,8 +158,13 @@ namespace FlexVault.VCS.Editor.Core
 
                 if (Directory.Exists(absolute))
                 {
-                    result.Add(repoRelative);
-                    result.Add(GetCompanionMetaPath(repoRelative));
+                    // Directories themselves cannot be reverted directly by fxv CLI (reverting directories is rejected).
+                    // Include the directory's companion .meta file and all descendant files and their .meta files.
+                    string folderMeta = GetCompanionMetaPath(repoRelative);
+                    if (!string.IsNullOrEmpty(folderMeta))
+                    {
+                        result.Add(folderMeta);
+                    }
 
                     try
                     {
@@ -167,8 +172,11 @@ namespace FlexVault.VCS.Editor.Core
                         foreach (var d in dirs)
                         {
                             string dirRepoRel = ToRepoRelativePath(d);
-                            result.Add(dirRepoRel);
-                            result.Add(GetCompanionMetaPath(dirRepoRel));
+                            string subFolderMeta = GetCompanionMetaPath(dirRepoRel);
+                            if (!string.IsNullOrEmpty(subFolderMeta))
+                            {
+                                result.Add(subFolderMeta);
+                            }
                         }
 
                         var files = Directory.GetFiles(absolute, "*", SearchOption.AllDirectories);

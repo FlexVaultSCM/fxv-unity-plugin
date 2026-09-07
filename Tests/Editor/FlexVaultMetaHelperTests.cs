@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using NUnit.Framework;
@@ -101,7 +101,10 @@ namespace FlexVault.VCS.Editor.Tests
                 string repoRelFile1 = FlexVaultMetaHelper.ToRepoRelativePath(Path.Combine(tempDir, "File1.txt"));
                 string repoRelFile2 = FlexVaultMetaHelper.ToRepoRelativePath(Path.Combine(subDir, "File2.txt"));
 
-                CollectionAssert.Contains(expanded, repoRelSubDir);
+                string repoRelTopDir = FlexVaultMetaHelper.ToRepoRelativePath(tempDir);
+                CollectionAssert.DoesNotContain(expanded, repoRelTopDir);
+                CollectionAssert.DoesNotContain(expanded, repoRelSubDir);
+                CollectionAssert.Contains(expanded, repoRelTopDir + ".meta");
                 CollectionAssert.Contains(expanded, repoRelSubDir + ".meta");
                 CollectionAssert.Contains(expanded, repoRelFile1);
                 CollectionAssert.Contains(expanded, repoRelFile1 + ".meta");
