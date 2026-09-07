@@ -7,7 +7,7 @@ Unity Editor Version Control plugin for [FlexVault](https://fxv.dev). Integrates
 ## Requirements
 
 * **Unity**: Unity 2021.3 LTS, 2022.3 LTS, or Unity 6+.
-* **FlexVault CLI**: `fxv` binary installed and accessible (or configured via Project Settings).
+* **FlexVault CLI**: `fxv` binary version `0.5.0` to `< 0.9.0` installed and accessible (or configured via Project Settings).
 * **Newtonsoft JSON**: Automatically resolved via Package Manager (`com.unity.nuget.newtonsoft-json`).
 
 ---
@@ -40,7 +40,7 @@ Navigate to **Edit > Project Settings > Version Control > FlexVault**:
   * **Changes View**: Displays all modified, added, and deleted files with status badges.
   * **Draft Checkpointing**: Create local snapshots (`fxv snapshot`) without publishing to remote.
   * **Conflict Resolution**: Inline conflict resolution banners and per-file `[Mine]` / `[Theirs]` buttons (`fxv resolve`).
-  * **Diff Support**: Diff individual or selected files against their published base, with automatic delegation to `UnityYAMLMerge` for `.unity`, `.prefab`, `.asset`, and `.mat` files.
+  * **Diff Support**: Diff individual or selected files against their published base revision, using external graphical diff viewers configured via `FXV_DIFF_TOOL`, `DIFF`, VS Code, or Rider.
   * **Publish**: Prompts for a commit description and publishes the entire workspace draft (`fxv snapshot` followed by `fxv publish`).
   * **Revert**: Reverts selected assets and their companion `.meta` files to the published base.
   * **Sync View**: Displays revision status (revisions behind remote HEAD) and provides one-click workspace synchronization (`fxv sync`).
@@ -48,7 +48,7 @@ Navigate to **Edit > Project Settings > Version Control > FlexVault**:
 * **Project Window Badges**:
   * Displays visual status indicators on items in the Project window (`+` Added, `~` Modified, `-` Deleted, `!` Conflicted).
 * **Right-Click Context Menus** (`Assets > FlexVault`):
-  * Quick access to **Diff Selected Against Base**, **Resolve Conflict** (Keep Mine / Take Theirs), **Ignore Selected** (Add to `.gitignore`), **History**, **Revert Selected**, **Refresh Status**, and **Open FlexVault Window**.
+  * Quick access to **Diff Selected Against Base**, **Resolve Conflict** (Keep Mine / Take Theirs), **Ignore Selected** (Add to `.fxvignore` and `.gitignore`), **History**, **Revert Selected**, **Refresh Status**, and **Open FlexVault Window**.
 * **Engine Lifecycle & Mutation Safety**:
   * Enforces asset and `.meta` companion atomicity (including recursive folder expansion).
   * Safety guards prevent workspace mutations while in Play Mode or when scenes have unsaved edits.
