@@ -509,15 +509,47 @@ namespace FlexVault.VCS.Editor.Core
                 if (string.IsNullOrEmpty(arg))
                 {
                     sb.Append("\"\"");
+                    continue;
                 }
-                else if (arg.Contains(" ") || arg.Contains("\t") || arg.Contains("\""))
-                {
-                    sb.Append("\"").Append(arg.Replace("\"", "\\\"")).Append("\"");
-                }
-                else
+
+                bool needsQuotes = arg.Contains(" ") || arg.Contains("\t") || arg.Contains("\"") || arg.Contains("\n") || arg.Contains("\r");
+                if (!needsQuotes)
                 {
                     sb.Append(arg);
+                    continue;
                 }
+
+                sb.Append('"');
+                int backslashCount = 0;
+                for (int i = 0; i < arg.Length; i++)
+                {
+                    char c = arg[i];
+                    if (c == '\\')
+                    {
+                        backslashCount++;
+                    }
+                    else if (c == '"')
+                    {
+                        sb.Append('\\', backslashCount * 2 + 1);
+                        sb.Append('"');
+                        backslashCount = 0;
+                    }
+                    else
+                    {
+                        if (backslashCount > 0)
+                        {
+                            sb.Append('\\', backslashCount);
+                            backslashCount = 0;
+                        }
+                        sb.Append(c);
+                    }
+                }
+
+                if (backslashCount > 0)
+                {
+                    sb.Append('\\', backslashCount * 2);
+                }
+                sb.Append('"');
             }
             return sb.ToString();
         }

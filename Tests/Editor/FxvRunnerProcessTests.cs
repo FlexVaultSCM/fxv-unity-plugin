@@ -55,6 +55,22 @@ namespace FlexVault.VCS.Editor.Tests
         }
 
         [Test]
+        public void FormatArguments_ArgsWithTrailingBackslash_EscapesBackslashBeforeQuote()
+        {
+            var args = new[] { "revert", @"C:\My Project\Folder\" };
+            string formatted = InvokeFormatArguments(args);
+            Assert.AreEqual(@"revert ""C:\My Project\Folder\\""", formatted);
+        }
+
+        [Test]
+        public void FormatArguments_ArgsWithTrailingMultipleBackslashes_DoublesAllBackslashes()
+        {
+            var args = new[] { "revert", @"C:\My Project\Folder\\" };
+            string formatted = InvokeFormatArguments(args);
+            Assert.AreEqual(@"revert ""C:\My Project\Folder\\\\""", formatted);
+        }
+
+        [Test]
         public async Task RunCommandAsync_NonExistentBinary_FailsGracefully()
         {
             const string invalidBinary = @"C:\NonexistentDir\definitely_not_a_binary.exe";
