@@ -138,16 +138,33 @@ namespace FlexVault.VCS.Editor.Core
         [JsonProperty("workspace_state")]
         public string WorkspaceState { get; set; }
 
+        [JsonProperty("conflict_state")]
+        public object ConflictState { get; set; }
+
         [JsonProperty("size")]
         public ulong? Size { get; set; }
+
+        [JsonIgnore]
+        public bool IsConflicted =>
+            ConflictState != null ||
+            "conflicted".Equals(WorkspaceState, StringComparison.OrdinalIgnoreCase) ||
+            "conflicted".Equals(UnpublishedState, StringComparison.OrdinalIgnoreCase);
 
         [JsonIgnore]
         public string EffectiveState
         {
             get
             {
+                if (IsConflicted)
+                {
+                    return "conflicted";
+                }
                 if (!string.IsNullOrEmpty(WorkspaceState))
                 {
+                    if (WorkspaceState.Equals("maybe_changed", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return "modified";
+                    }
                     return WorkspaceState;
                 }
                 return UnpublishedState ?? "unchanged";

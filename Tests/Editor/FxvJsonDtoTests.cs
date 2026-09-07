@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 using NUnit.Framework;
@@ -259,6 +259,33 @@ namespace FlexVault.VCS.Editor.Tests
 
             var item3 = new FileStatusItem { WorkspaceState = "", UnpublishedState = null };
             Assert.AreEqual("unchanged", item3.EffectiveState);
+        }
+
+        [Test]
+        public void FileStatusItem_EffectiveState_MapsMaybeChangedToModified()
+        {
+            var item = new FileStatusItem { WorkspaceState = "maybe_changed", UnpublishedState = "unchanged" };
+            Assert.AreEqual("modified", item.EffectiveState);
+        }
+
+        [Test]
+        public void FileStatusItem_EffectiveState_DetectsConflictState()
+        {
+            var itemWithObj = new FileStatusItem
+            {
+                WorkspaceState = "modified",
+                ConflictState = new object()
+            };
+            Assert.IsTrue(itemWithObj.IsConflicted);
+            Assert.AreEqual("conflicted", itemWithObj.EffectiveState);
+
+            var itemWithString = new FileStatusItem
+            {
+                WorkspaceState = "modified",
+                UnpublishedState = "conflicted"
+            };
+            Assert.IsTrue(itemWithString.IsConflicted);
+            Assert.AreEqual("conflicted", itemWithString.EffectiveState);
         }
     }
 }
