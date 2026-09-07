@@ -484,12 +484,7 @@ namespace FlexVault.VCS.Editor.UI
 
             if (!FlexVaultSafetyGuards.EnsureSafeToMutateWorkspace("Revert", promptSaveDirtyScenes: true)) return;
 
-            var expanded = FlexVaultMetaHelper.ExpandWithMeta(m_selectedPaths);
-            var repoRelative = new List<string>();
-            foreach (var p in expanded)
-            {
-                repoRelative.Add(FlexVaultMetaHelper.ToRepoRelativePath(p));
-            }
+            var repoRelative = FlexVaultMetaHelper.ExpandWithMeta(m_selectedPaths);
 
             if (!EditorUtility.DisplayDialog(
                 "Confirm Revert",

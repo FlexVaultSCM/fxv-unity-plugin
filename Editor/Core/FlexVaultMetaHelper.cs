@@ -24,15 +24,25 @@ namespace FlexVault.VCS.Editor.Core
             }
 
             string repoRoot = FlexVaultSettings.GetRepositoryRoot();
+            string repoRootNormalized = NormalizeSeparators(repoRoot);
             string normalized = NormalizeSeparators(projectOrAbsolutePath);
 
             if (!Path.IsPathRooted(normalized))
             {
+                // If it already resolves directly relative to the repository root, keep it as repo-relative
+                if (!string.IsNullOrEmpty(repoRootNormalized))
+                {
+                    string candidateRepoPath = NormalizeSeparators(Path.Combine(repoRootNormalized, normalized));
+                    if (File.Exists(candidateRepoPath) || Directory.Exists(candidateRepoPath) || File.Exists(candidateRepoPath + ".meta"))
+                    {
+                        return normalized;
+                    }
+                }
+
                 string projectRoot = NormalizeSeparators(Path.GetFullPath(Path.Combine(Application.dataPath, "..")));
                 normalized = NormalizeSeparators(Path.Combine(projectRoot, normalized));
             }
 
-            string repoRootNormalized = NormalizeSeparators(repoRoot);
             if (normalized.Equals(repoRootNormalized, StringComparison.OrdinalIgnoreCase))
             {
                 return string.Empty;
