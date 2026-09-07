@@ -139,11 +139,15 @@ namespace FlexVault.VCS.Editor.Core
 
                         if (!string.IsNullOrWhiteSpace(result.RawStdout))
                         {
-                            if (result.RawStdout.StartsWith("{"))
+                            string trimmed = result.RawStdout.TrimStart('\uFEFF', ' ', '\t', '\r', '\n');
+                            int firstBrace = trimmed.IndexOf('{');
+                            int lastBrace = trimmed.LastIndexOf('}');
+                            if (firstBrace >= 0 && lastBrace > firstBrace)
                             {
+                                string jsonStr = trimmed.Substring(firstBrace, lastBrace - firstBrace + 1);
                                 try
                                 {
-                                    var envelope = JsonConvert.DeserializeObject<OutputEnvelope<T>>(result.RawStdout);
+                                    var envelope = JsonConvert.DeserializeObject<OutputEnvelope<T>>(jsonStr);
                                     if (envelope != null && envelope.Message != null)
                                     {
                                         if (envelope.Program != null && !string.IsNullOrEmpty(envelope.Program.Version))
@@ -158,7 +162,7 @@ namespace FlexVault.VCS.Editor.Core
 
                                         if (envelope.Message.Kind == "error")
                                         {
-                                            var errorEnvelope = JsonConvert.DeserializeObject<OutputEnvelope<ErrorPayload>>(result.RawStdout);
+                                            var errorEnvelope = JsonConvert.DeserializeObject<OutputEnvelope<ErrorPayload>>(jsonStr);
                                             result.Success = false;
                                             result.ErrorMessage = errorEnvelope?.Message?.Payload?.Message ?? "FlexVault CLI returned an error.";
                                             return result;

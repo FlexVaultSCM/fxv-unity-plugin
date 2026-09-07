@@ -268,12 +268,31 @@ namespace FlexVault.VCS.Editor.UI
 
         private static void AppendUniqueLines(string filePath, IEnumerable<string> lines)
         {
-            var existing = System.IO.File.Exists(filePath)
-                ? new HashSet<string>(System.IO.File.ReadAllLines(filePath), StringComparer.OrdinalIgnoreCase)
-                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            bool needsPrecedingNewline = false;
+
+            if (System.IO.File.Exists(filePath))
+            {
+                var existingLines = System.IO.File.ReadAllLines(filePath);
+                foreach (var line in existingLines)
+                {
+                    existing.Add(line);
+                }
+
+                string text = System.IO.File.ReadAllText(filePath);
+                if (text.Length > 0 && !text.EndsWith("\n") && !text.EndsWith("\r"))
+                {
+                    needsPrecedingNewline = true;
+                }
+            }
 
             using (var writer = System.IO.File.AppendText(filePath))
             {
+                if (needsPrecedingNewline)
+                {
+                    writer.WriteLine();
+                }
+
                 foreach (var line in lines)
                 {
                     if (!existing.Contains(line))

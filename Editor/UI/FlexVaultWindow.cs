@@ -799,10 +799,19 @@ namespace FlexVault.VCS.Editor.UI
         private void OnGUI()
         {
             GUILayout.Space(10);
-            EditorGUILayout.LabelField(m_prompt, EditorStyles.wordWrappedLabel);
+            EditorGUILayout.LabelField(m_prompt ?? "", EditorStyles.wordWrappedLabel);
             GUILayout.Space(5);
             m_inputText = EditorGUILayout.TextField(m_inputText);
             GUILayout.Space(15);
+
+            bool submit = false;
+            Event e = Event.current;
+            if (e != null && e.isKey && e.keyCode == KeyCode.Return && e.type == EventType.KeyDown)
+            {
+                submit = true;
+                e.Use();
+            }
+
             EditorGUILayout.BeginHorizontal();
             {
                 GUILayout.FlexibleSpace();
@@ -810,10 +819,12 @@ namespace FlexVault.VCS.Editor.UI
                 {
                     Close();
                 }
-                if (GUILayout.Button("OK", GUILayout.Width(80)) || (Event.current.isKey && Event.current.keyCode == KeyCode.Return))
+                if (GUILayout.Button("OK", GUILayout.Width(80)) || submit)
                 {
-                    m_onConfirm?.Invoke(m_inputText);
+                    string text = m_inputText;
+                    var callback = m_onConfirm;
                     Close();
+                    callback?.Invoke(text);
                 }
             }
             EditorGUILayout.EndHorizontal();

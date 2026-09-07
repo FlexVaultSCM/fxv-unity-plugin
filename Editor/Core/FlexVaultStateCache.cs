@@ -30,7 +30,16 @@ namespace FlexVault.VCS.Editor.Core
             };
         }
 
-        public static bool IsRefreshing => s_isRefreshing;
+        public static bool IsRefreshing
+        {
+            get
+            {
+                lock (s_lock)
+                {
+                    return s_isRefreshing;
+                }
+            }
+        }
         public static StatusPayload LatestStatus => s_latestStatus;
 
         public static string GetStateByGuid(string guid)
@@ -74,13 +83,16 @@ namespace FlexVault.VCS.Editor.Core
 
         public static async void RefreshAsync(bool skipScan = false)
         {
-            if (s_isRefreshing)
+            lock (s_lock)
             {
-                s_refreshPending = true;
-                return;
+                if (s_isRefreshing)
+                {
+                    s_refreshPending = true;
+                    return;
+                }
+                s_isRefreshing = true;
             }
 
-            s_isRefreshing = true;
             try
             {
                 var result = await FxvRunner.GetStatusAsync(skipScan);
@@ -88,24 +100,43 @@ namespace FlexVault.VCS.Editor.Core
                 {
                     EditorApplication.delayCall += () =>
                     {
-                        UpdateCache(result.Data);
+                        try
+                        {
+                            UpdateCache(result.Data);
+                        }
+                        finally
+                        {
+                            FinishRefresh(skipScan);
+                        }
                     };
+                    return;
                 }
             }
             catch (Exception ex)
             {
                 UnityEngine.Debug.LogError($"[FlexVault] Error updating state cache: {ex.Message}");
             }
-            finally
+
+            FinishRefresh(skipScan);
+        }
+
+        private static void FinishRefresh(bool skipScan)
+        {
+            bool triggerPending = false;
+            lock (s_lock)
             {
                 s_isRefreshing = false;
                 s_lastRefreshTime = EditorApplication.timeSinceStartup;
-
                 if (s_refreshPending)
                 {
                     s_refreshPending = false;
-                    EditorApplication.delayCall += () => RefreshAsync(skipScan);
+                    triggerPending = true;
                 }
+            }
+
+            if (triggerPending)
+            {
+                EditorApplication.delayCall += () => RefreshAsync(skipScan);
             }
         }
 
