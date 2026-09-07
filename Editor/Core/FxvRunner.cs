@@ -27,10 +27,11 @@ namespace FlexVault.VCS.Editor.Core
         public static async Task<FxvResult<T>> RunCommandAsync<T>(
             IEnumerable<string> args,
             CancellationToken cancellationToken = default,
-            int timeoutMs = 60000)
+            int timeoutMs = 60000,
+            string customBinaryPath = null)
         {
             var result = new FxvResult<T>();
-            string binaryPath = FlexVaultSettings.GetEffectiveBinaryPath();
+            string binaryPath = !string.IsNullOrEmpty(customBinaryPath) ? customBinaryPath : FlexVaultSettings.GetEffectiveBinaryPath();
             string workingDir = FlexVaultSettings.GetRepositoryRoot();
 
             if (string.IsNullOrEmpty(binaryPath))
@@ -145,6 +146,16 @@ namespace FlexVault.VCS.Editor.Core
                                     var envelope = JsonConvert.DeserializeObject<OutputEnvelope<T>>(result.RawStdout);
                                     if (envelope != null && envelope.Message != null)
                                     {
+                                        if (envelope.Program != null && !string.IsNullOrEmpty(envelope.Program.Version))
+                                        {
+                                            if (!FlexVaultVersionGuard.CheckVersion(envelope.Program.Version, out string versionError))
+                                            {
+                                                result.Success = false;
+                                                result.ErrorMessage = versionError;
+                                                return result;
+                                            }
+                                        }
+
                                         if (envelope.Message.Kind == "error")
                                         {
                                             var errorEnvelope = JsonConvert.DeserializeObject<OutputEnvelope<ErrorPayload>>(result.RawStdout);
@@ -349,9 +360,14 @@ namespace FlexVault.VCS.Editor.Core
             return await RunCommandAsync<HistoryPayload>(args, ct);
         }
 
-        public static async Task<bool> CatToFileAsync(string repoRelativePath, string revision, string destinationFilePath, CancellationToken ct = default)
+        public static async Task<bool> CatToFileAsync(
+            string repoRelativePath,
+            string revision,
+            string destinationFilePath,
+            CancellationToken ct = default,
+            string customBinaryPath = null)
         {
-            string binaryPath = FlexVaultSettings.GetEffectiveBinaryPath();
+            string binaryPath = !string.IsNullOrEmpty(customBinaryPath) ? customBinaryPath : FlexVaultSettings.GetEffectiveBinaryPath();
             string workingDir = FlexVaultSettings.GetRepositoryRoot();
 
             if (string.IsNullOrEmpty(binaryPath))

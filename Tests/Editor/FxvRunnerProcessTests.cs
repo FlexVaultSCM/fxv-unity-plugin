@@ -1,10 +1,13 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
+using UnityEngine;
+using UnityEngine.TestTools;
 using FlexVault.VCS.Editor.Core;
 
 namespace FlexVault.VCS.Editor.Tests
@@ -54,40 +57,29 @@ namespace FlexVault.VCS.Editor.Tests
         [Test]
         public async Task RunCommandAsync_NonExistentBinary_FailsGracefully()
         {
-            string originalCustom = FlexVaultSettings.CustomBinaryPath;
-            try
-            {
-                // Force an unlaunchable binary path
-                FlexVaultSettings.CustomBinaryPath = @"C:\NonexistentDir\definitely_not_a_binary.exe";
+            const string invalidBinary = @"C:\NonexistentDir\definitely_not_a_binary.exe";
 
-                // Ensure it does not throw an unhandled exception, but returns Success == false
-                var result = await FxvRunner.RunCommandAsync<StatusPayload>(new[] { "status" });
+            // Ensure it does not throw an unhandled exception, but returns Success == false
+            var result = await FxvRunner.RunCommandAsync<StatusPayload>(new[] { "status" }, customBinaryPath: invalidBinary);
 
-                Assert.IsFalse(result.Success);
-                Assert.IsNotEmpty(result.ErrorMessage);
-            }
-            finally
-            {
-                FlexVaultSettings.CustomBinaryPath = originalCustom;
-            }
+            Assert.IsFalse(result.Success);
+            Assert.IsNotEmpty(result.ErrorMessage);
         }
 
         [Test]
         public async Task CatToFileAsync_NonExistentBinary_ReturnsFalseCleanly()
         {
-            string originalCustom = FlexVaultSettings.CustomBinaryPath;
+            const string invalidBinary = @"C:\NonexistentDir\definitely_not_a_binary.exe";
             string tempTarget = Path.Combine(Path.GetTempPath(), "target_" + Guid.NewGuid().ToString("N") + ".txt");
+            LogAssert.Expect(UnityEngine.LogType.Error, new Regex("CatToFileAsync failed"));
             try
             {
-                FlexVaultSettings.CustomBinaryPath = @"C:\NonexistentDir\definitely_not_a_binary.exe";
-
-                bool success = await FxvRunner.CatToFileAsync("Assets/Test.cs", "main.1", tempTarget);
+                bool success = await FxvRunner.CatToFileAsync("Assets/Test.cs", "main.1", tempTarget, customBinaryPath: invalidBinary);
                 Assert.IsFalse(success);
                 Assert.IsFalse(File.Exists(tempTarget));
             }
             finally
             {
-                FlexVaultSettings.CustomBinaryPath = originalCustom;
                 if (File.Exists(tempTarget))
                 {
                     File.Delete(tempTarget);
