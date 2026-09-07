@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace FlexVault.VCS.Editor.Core
 {
@@ -96,9 +96,11 @@ namespace FlexVault.VCS.Editor.Core
 
     public static class FlexVaultVersionGuard
     {
-        // Pinned compatible range: [MinVersion, MaxVersion), identical to Unreal plugin
-        public static readonly FxvCliVersion MinVersion = new FxvCliVersion(0, 1, 0); // >= 0.1.0
-        public static readonly FxvCliVersion MaxVersion = new FxvCliVersion(0, 7, 0); // < 0.7.0
+        // Pinned compatible range: [MinVersion, MaxVersion)
+        // MinVersion is 0.5.0 because 'fxv cat' required for diff/history was introduced in v0.5.0.
+        // MaxVersion is 0.9.0 to support releases through v0.8.x.
+        public static readonly FxvCliVersion MinVersion = new FxvCliVersion(0, 5, 0); // >= 0.5.0
+        public static readonly FxvCliVersion MaxVersion = new FxvCliVersion(0, 9, 0); // < 0.9.0
 
         public static bool CheckVersion(string versionStr, out string errorMessage)
         {
