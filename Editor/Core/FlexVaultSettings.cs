@@ -106,7 +106,7 @@ namespace FlexVault.VCS.Editor.Core
             string currentDir = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
             while (!string.IsNullOrEmpty(currentDir))
             {
-                if (Directory.Exists(Path.Combine(currentDir, ".fxv_workspace")) || Directory.Exists(Path.Combine(currentDir, ".fxv")))
+                if (Directory.Exists(Path.Combine(currentDir, ".fxv_workspace")))
                 {
                     s_cachedRepoRoot = currentDir.Replace('\\', '/');
                     s_repoRootSearched = true;
@@ -135,8 +135,7 @@ namespace FlexVault.VCS.Editor.Core
         public static bool IsInFlexVaultRepository()
         {
             string root = GetRepositoryRoot();
-            return !string.IsNullOrEmpty(root) && 
-                (Directory.Exists(Path.Combine(root, ".fxv_workspace")) || Directory.Exists(Path.Combine(root, ".fxv")));
+            return !string.IsNullOrEmpty(root) && Directory.Exists(Path.Combine(root, ".fxv_workspace"));
         }
     }
 
@@ -180,7 +179,7 @@ namespace FlexVault.VCS.Editor.Core
             string repoRoot = FlexVaultSettings.GetRepositoryRoot();
             bool isRepo = FlexVaultSettings.IsInFlexVaultRepository();
             EditorGUILayout.LabelField("Repository Root:", repoRoot ?? "Unknown", EditorStyles.wordWrappedLabel);
-            EditorGUILayout.LabelField("Repository Detected:", isRepo ? "Yes (.fxv present)" : "No (.fxv not found)");
+            EditorGUILayout.LabelField("Repository Detected:", isRepo ? "Yes (.fxv_workspace present)" : "No (.fxv_workspace not found)");
 
             GUILayout.Space(10f);
 

@@ -93,7 +93,7 @@ namespace FlexVault.VCS.Editor.UI
         {
             GUILayout.Space(20f);
             EditorGUILayout.HelpBox(
-                "No FlexVault repository (.fxv) detected in this project or its parent directories.",
+                "No FlexVault repository (.fxv_workspace) detected in this project or its parent directories.",
                 MessageType.Warning);
 
             GUILayout.Space(10f);
