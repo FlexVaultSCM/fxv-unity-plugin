@@ -117,10 +117,13 @@ namespace FlexVault.VCS.Editor.Core
                 return true;
             }
 
-            string companionMeta = FlexVaultMetaHelper.GetCompanionMetaPath(path);
-            if (!string.IsNullOrEmpty(companionMeta))
+            string companionPath = FlexVaultMetaHelper.IsMetaFile(path)
+                ? FlexVaultMetaHelper.GetLogicalAssetPath(path)
+                : FlexVaultMetaHelper.GetCompanionMetaPath(path);
+
+            if (!string.IsNullOrEmpty(companionPath) && !string.Equals(companionPath, path, StringComparison.OrdinalIgnoreCase))
             {
-                var metaItem = GetStatusByPath(companionMeta);
+                var metaItem = GetStatusByPath(companionPath);
                 if (metaItem != null && (metaItem.NeedsSnapshot || metaItem.IsConflicted))
                 {
                     return true;
@@ -160,10 +163,13 @@ namespace FlexVault.VCS.Editor.Core
             var item = GetStatusByPath(path);
             if (item != null && item.IsConflicted) return true;
 
-            string companionMeta = FlexVaultMetaHelper.GetCompanionMetaPath(path);
-            if (!string.IsNullOrEmpty(companionMeta))
+            string companionPath = FlexVaultMetaHelper.IsMetaFile(path)
+                ? FlexVaultMetaHelper.GetLogicalAssetPath(path)
+                : FlexVaultMetaHelper.GetCompanionMetaPath(path);
+
+            if (!string.IsNullOrEmpty(companionPath) && !string.Equals(companionPath, path, StringComparison.OrdinalIgnoreCase))
             {
-                var metaItem = GetStatusByPath(companionMeta);
+                var metaItem = GetStatusByPath(companionPath);
                 if (metaItem != null && metaItem.IsConflicted) return true;
             }
 
