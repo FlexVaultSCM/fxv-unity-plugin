@@ -13,6 +13,9 @@ namespace FlexVault.VCS.Editor.Core
         private static readonly object s_lock = new object();
         private static readonly Dictionary<string, FileStatusItem> s_pathToStatus = new Dictionary<string, FileStatusItem>(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, string> s_guidToState = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly List<FileStatusItem> s_changedFiles = new List<FileStatusItem>();
+        private static readonly List<FileStatusItem> s_workspaceChanges = new List<FileStatusItem>();
+        private static readonly List<FileStatusItem> s_unpublishedChanges = new List<FileStatusItem>();
         private static StatusPayload s_latestStatus;
         private static bool s_isRefreshing;
         private static double s_lastRefreshTime;
@@ -74,9 +77,7 @@ namespace FlexVault.VCS.Editor.Core
         {
             lock (s_lock)
             {
-                return s_latestStatus?.Files != null
-                    ? new List<FileStatusItem>(s_latestStatus.Files)
-                    : new List<FileStatusItem>();
+                return new List<FileStatusItem>(s_changedFiles);
             }
         }
 
@@ -84,13 +85,7 @@ namespace FlexVault.VCS.Editor.Core
         {
             lock (s_lock)
             {
-                if (s_latestStatus?.Files == null) return new List<FileStatusItem>();
-                var list = new List<FileStatusItem>();
-                foreach (var f in s_latestStatus.Files)
-                {
-                    if (f.NeedsSnapshot) list.Add(f);
-                }
-                return list;
+                return new List<FileStatusItem>(s_workspaceChanges);
             }
         }
 
@@ -98,13 +93,7 @@ namespace FlexVault.VCS.Editor.Core
         {
             lock (s_lock)
             {
-                if (s_latestStatus?.Files == null) return new List<FileStatusItem>();
-                var list = new List<FileStatusItem>();
-                foreach (var f in s_latestStatus.Files)
-                {
-                    if (f.IsUnpublished) list.Add(f);
-                }
-                return list;
+                return new List<FileStatusItem>(s_unpublishedChanges);
             }
         }
 
@@ -386,6 +375,26 @@ namespace FlexVault.VCS.Editor.Core
                 }
             }
 
+            var newChangedFiles = new List<FileStatusItem>();
+            var newWorkspaceChanges = new List<FileStatusItem>();
+            var newUnpublishedChanges = new List<FileStatusItem>();
+
+            if (status.Files != null)
+            {
+                foreach (var file in status.Files)
+                {
+                    newChangedFiles.Add(file);
+                    if (file.NeedsSnapshot)
+                    {
+                        newWorkspaceChanges.Add(file);
+                    }
+                    if (file.IsUnpublished)
+                    {
+                        newUnpublishedChanges.Add(file);
+                    }
+                }
+            }
+
             lock (s_lock)
             {
                 s_latestStatus = status;
@@ -400,6 +409,15 @@ namespace FlexVault.VCS.Editor.Core
                 {
                     s_guidToState[kvp.Key] = kvp.Value;
                 }
+
+                s_changedFiles.Clear();
+                s_changedFiles.AddRange(newChangedFiles);
+
+                s_workspaceChanges.Clear();
+                s_workspaceChanges.AddRange(newWorkspaceChanges);
+
+                s_unpublishedChanges.Clear();
+                s_unpublishedChanges.AddRange(newUnpublishedChanges);
             }
 
             OnStateChanged?.Invoke();
