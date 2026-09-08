@@ -138,10 +138,44 @@ namespace FlexVault.VCS.Editor.Core
             FlexVaultMetaHelper.InvalidateProjectRoot();
         }
 
+        private const string IntegrationEnabledPrefKey = "FlexVault_IntegrationEnabled";
+
+        public static bool IntegrationEnabled
+        {
+            get => EditorPrefs.GetBool(IntegrationEnabledPrefKey, true);
+            set => EditorPrefs.SetBool(IntegrationEnabledPrefKey, value);
+        }
+
         public static bool IsInFlexVaultRepository()
         {
             string root = GetRepositoryRoot();
             return !string.IsNullOrEmpty(root) && Directory.Exists(Path.Combine(root, ".fxv_workspace"));
+        }
+
+        public static bool IsFlexVaultActive()
+        {
+            if (!IntegrationEnabled)
+            {
+                return false;
+            }
+
+            if (!IsInFlexVaultRepository())
+            {
+                return false;
+            }
+
+            string vcsMode = EditorSettings.vcs;
+            if (!string.IsNullOrEmpty(vcsMode))
+            {
+                if (!vcsMode.Equals("Visible Meta Files", StringComparison.OrdinalIgnoreCase) &&
+                    !vcsMode.Equals("Hidden Meta Files", StringComparison.OrdinalIgnoreCase) &&
+                    !vcsMode.Equals("FlexVault", StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
     }
 

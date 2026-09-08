@@ -23,7 +23,7 @@ namespace FlexVault.VCS.Editor.Core
         {
             EditorApplication.delayCall += async () =>
             {
-                if (FlexVaultSettings.IsInFlexVaultRepository())
+                if (FlexVaultSettings.IsFlexVaultActive())
                 {
                     await FxvRunner.EnsureVersionCheckedAsync();
                     RefreshAsync();

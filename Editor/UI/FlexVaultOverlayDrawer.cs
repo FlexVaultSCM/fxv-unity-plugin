@@ -22,7 +22,7 @@ namespace FlexVault.VCS.Editor.UI
 
         private static void OnProjectWindowItemGUI(string guid, Rect selectionRect)
         {
-            if (string.IsNullOrEmpty(guid) || Event.current.type != EventType.Repaint)
+            if (string.IsNullOrEmpty(guid) || Event.current.type != EventType.Repaint || !FlexVaultSettings.IsFlexVaultActive())
             {
                 return;
             }

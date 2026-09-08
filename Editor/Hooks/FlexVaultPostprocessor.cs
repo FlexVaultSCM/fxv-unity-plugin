@@ -17,7 +17,7 @@ namespace FlexVault.VCS.Editor.Hooks
             string[] movedAssets,
             string[] movedFromAssetPaths)
         {
-            if (!FlexVaultSettings.IsInFlexVaultRepository())
+            if (!FlexVaultSettings.IsFlexVaultActive())
             {
                 return;
             }

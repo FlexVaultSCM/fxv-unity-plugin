@@ -16,11 +16,13 @@ namespace FlexVault.VCS.Editor.Core
 
         public override void OnActivate()
         {
+            FlexVaultSettings.IntegrationEnabled = true;
+
             if (Application.isBatchMode)
                 return;
 
             FlexVaultSettings.InvalidateRepoRoot();
-            if (FlexVaultSettings.IsInFlexVaultRepository())
+            if (FlexVaultSettings.IsFlexVaultActive())
             {
                 FlexVaultStateCache.RefreshAsync();
             }
