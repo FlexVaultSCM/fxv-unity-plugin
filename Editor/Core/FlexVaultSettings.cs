@@ -164,15 +164,10 @@ namespace FlexVault.VCS.Editor.Core
                 return false;
             }
 
-            string vcsMode = EditorSettings.vcs;
-            if (!string.IsNullOrEmpty(vcsMode))
+            var activeVcs = UnityEditor.VersionControl.VersionControlManager.activeVersionControlObject;
+            if (activeVcs != null && !(activeVcs is FlexVaultVersionControlObject))
             {
-                if (!vcsMode.Equals("Visible Meta Files", StringComparison.OrdinalIgnoreCase) &&
-                    !vcsMode.Equals("Hidden Meta Files", StringComparison.OrdinalIgnoreCase) &&
-                    !vcsMode.Equals("FlexVault", StringComparison.OrdinalIgnoreCase))
-                {
-                    return false;
-                }
+                return false;
             }
 
             return true;
