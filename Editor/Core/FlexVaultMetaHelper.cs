@@ -228,5 +228,32 @@ namespace FlexVault.VCS.Editor.Core
 
             return new List<string>(result);
         }
+
+        public static void PingAsset(string repoOrProjectPath)
+        {
+            if (string.IsNullOrEmpty(repoOrProjectPath)) return;
+
+            string projectRelative = ToProjectRelativePath(repoOrProjectPath);
+            if (IsMetaFile(projectRelative))
+            {
+                projectRelative = GetLogicalAssetPath(projectRelative);
+            }
+
+            var obj = UnityEditor.AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(projectRelative);
+            if (obj != null)
+            {
+                UnityEditor.Selection.activeObject = obj;
+                UnityEditor.EditorGUIUtility.PingObject(obj);
+            }
+            else
+            {
+                // Fallback for non-Asset files (e.g. ProjectSettings)
+                string absolute = ToAbsolutePath(repoOrProjectPath);
+                if (System.IO.File.Exists(absolute) || System.IO.Directory.Exists(absolute))
+                {
+                    UnityEditor.EditorUtility.RevealInFinder(absolute);
+                }
+            }
+        }
     }
 }

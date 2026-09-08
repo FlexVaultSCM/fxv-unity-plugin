@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
+using FlexVault.VCS.Editor.UI;
 
 namespace FlexVault.VCS.Editor.Core
 {
@@ -139,27 +140,21 @@ namespace FlexVault.VCS.Editor.Core
         }
     }
 
-    public class FlexVaultSettingsProvider : SettingsProvider
+    public class FlexVaultSettingsUIState
     {
-        private string m_testStatus = string.Empty;
-        private MessageType m_testMessageType = MessageType.None;
-        private string m_loginUsername = string.Empty;
-        private string m_authStatus = string.Empty;
-        private MessageType m_authMessageType = MessageType.None;
+        public string TestStatus = string.Empty;
+        public MessageType TestMessageType = MessageType.None;
+        public string LoginUsername = string.Empty;
+        public string AuthStatus = string.Empty;
+        public MessageType AuthMessageType = MessageType.None;
+    }
 
-        public FlexVaultSettingsProvider(string path, SettingsScope scope) : base(path, scope) { }
-
-        [SettingsProvider]
-        public static SettingsProvider CreateSettingsProvider()
+    public static class FlexVaultSettingsDrawer
+    {
+        public static void DrawSettings(FlexVaultSettingsUIState state, Action repaintCallback = null)
         {
-            return new FlexVaultSettingsProvider("Project/Version Control/FlexVault", SettingsScope.Project)
-            {
-                keywords = new[] { "FlexVault", "VCS", "SCM", "Source Control", "fxv" }
-            };
-        }
+            if (state == null) return;
 
-        public override void OnGUI(string searchContext)
-        {
             GUILayout.Space(10f);
             EditorGUILayout.LabelField("FlexVault Version Control Settings", EditorStyles.boldLabel);
             GUILayout.Space(5f);
@@ -183,26 +178,39 @@ namespace FlexVault.VCS.Editor.Core
 
             GUILayout.Space(10f);
 
-            if (GUILayout.Button("Browse for fxv Executable...", GUILayout.Width(220)))
+            EditorGUILayout.BeginHorizontal();
             {
-                string path = EditorUtility.OpenFilePanel("Select fxv Executable", "", Application.platform == RuntimePlatform.WindowsEditor ? "exe" : "");
-                if (!string.IsNullOrEmpty(path))
+                if (GUILayout.Button("Browse for fxv Executable...", GUILayout.Width(220)))
                 {
-                    FlexVaultSettings.CustomBinaryPath = path;
+                    string path = EditorUtility.OpenFilePanel("Select fxv Executable", "", Application.platform == RuntimePlatform.WindowsEditor ? "exe" : "");
+                    if (!string.IsNullOrEmpty(path))
+                    {
+                        FlexVaultSettings.CustomBinaryPath = path;
+                        repaintCallback?.Invoke();
+                    }
+                }
+
+                if (GUILayout.Button("Open FlexVault Window", GUILayout.Width(180)))
+                {
+                    EditorApplication.delayCall += () =>
+                    {
+                        FlexVaultWindow.ShowWindow();
+                    };
                 }
             }
+            EditorGUILayout.EndHorizontal();
 
             GUILayout.Space(5f);
 
             if (GUILayout.Button("Test CLI Connection", GUILayout.Width(220)))
             {
-                TestConnection();
+                TestConnection(state, repaintCallback);
             }
 
-            if (!string.IsNullOrEmpty(m_testStatus))
+            if (!string.IsNullOrEmpty(state.TestStatus))
             {
                 GUILayout.Space(5f);
-                EditorGUILayout.HelpBox(m_testStatus, m_testMessageType);
+                EditorGUILayout.HelpBox(state.TestStatus, state.TestMessageType);
             }
 
             GUILayout.Space(15f);
@@ -219,7 +227,7 @@ namespace FlexVault.VCS.Editor.Core
                 GUILayout.Space(5f);
                 if (GUILayout.Button("Log Out", GUILayout.Width(120)))
                 {
-                    PerformLogout();
+                    PerformLogout(state, repaintCallback);
                 }
             }
             else
@@ -229,85 +237,112 @@ namespace FlexVault.VCS.Editor.Core
                 EditorGUILayout.BeginHorizontal();
                 {
                     EditorGUILayout.LabelField("Username:", GUILayout.Width(80));
-                    m_loginUsername = EditorGUILayout.TextField(m_loginUsername, GUILayout.Width(200));
-                    GUI.enabled = !string.IsNullOrWhiteSpace(m_loginUsername);
+                    state.LoginUsername = EditorGUILayout.TextField(state.LoginUsername, GUILayout.Width(200));
+                    GUI.enabled = !string.IsNullOrWhiteSpace(state.LoginUsername);
                     if (GUILayout.Button("Log In", GUILayout.Width(100)))
                     {
-                        PerformLogin(m_loginUsername.Trim());
+                        PerformLogin(state.LoginUsername.Trim(), state, repaintCallback);
                     }
                     GUI.enabled = true;
                 }
                 EditorGUILayout.EndHorizontal();
             }
 
-            if (!string.IsNullOrEmpty(m_authStatus))
+            if (!string.IsNullOrEmpty(state.AuthStatus))
             {
                 GUILayout.Space(5f);
-                EditorGUILayout.HelpBox(m_authStatus, m_authMessageType);
+                EditorGUILayout.HelpBox(state.AuthStatus, state.AuthMessageType);
             }
         }
 
-        private async void PerformLogin(string username)
+        private static async void PerformLogin(string username, FlexVaultSettingsUIState state, Action repaintCallback)
         {
-            m_authStatus = $"Logging in as '{username}'...";
-            m_authMessageType = MessageType.Info;
+            state.AuthStatus = $"Logging in as '{username}'...";
+            state.AuthMessageType = MessageType.Info;
             SettingsService.NotifySettingsProviderChanged();
+            repaintCallback?.Invoke();
 
             var result = await FxvRunner.LoginAsync(username);
             if (result.Success)
             {
-                m_authStatus = $"Logged in successfully as '{username}'.";
-                m_authMessageType = MessageType.Info;
-                m_loginUsername = string.Empty;
+                state.AuthStatus = $"Logged in successfully as '{username}'.";
+                state.AuthMessageType = MessageType.Info;
+                state.LoginUsername = string.Empty;
                 FlexVaultStateCache.RefreshAsync();
             }
             else
             {
-                m_authStatus = $"Login failed: {result.ErrorMessage}";
-                m_authMessageType = MessageType.Error;
+                state.AuthStatus = $"Login failed: {result.ErrorMessage}";
+                state.AuthMessageType = MessageType.Error;
             }
             SettingsService.NotifySettingsProviderChanged();
+            repaintCallback?.Invoke();
         }
 
-        private async void PerformLogout()
+        private static async void PerformLogout(FlexVaultSettingsUIState state, Action repaintCallback)
         {
-            m_authStatus = "Logging out...";
-            m_authMessageType = MessageType.Info;
+            state.AuthStatus = "Logging out...";
+            state.AuthMessageType = MessageType.Info;
             SettingsService.NotifySettingsProviderChanged();
+            repaintCallback?.Invoke();
 
             var result = await FxvRunner.LogoutAsync();
             if (result.Success)
             {
-                m_authStatus = "Logged out successfully.";
-                m_authMessageType = MessageType.Info;
+                state.AuthStatus = "Logged out successfully.";
+                state.AuthMessageType = MessageType.Info;
                 FlexVaultStateCache.RefreshAsync();
             }
             else
             {
-                m_authStatus = $"Logout failed: {result.ErrorMessage}";
-                m_authMessageType = MessageType.Error;
+                state.AuthStatus = $"Logout failed: {result.ErrorMessage}";
+                state.AuthMessageType = MessageType.Error;
             }
             SettingsService.NotifySettingsProviderChanged();
+            repaintCallback?.Invoke();
         }
 
-        private async void TestConnection()
+        private static async void TestConnection(FlexVaultSettingsUIState state, Action repaintCallback)
         {
-            m_testStatus = "Testing connection to fxv CLI...";
-            m_testMessageType = MessageType.Info;
+            state.TestStatus = "Testing connection to fxv CLI...";
+            state.TestMessageType = MessageType.Info;
             SettingsService.NotifySettingsProviderChanged();
+            repaintCallback?.Invoke();
 
             var result = await FxvRunner.RunCommandAsync<StatusPayload>(new[] { "status", "--skip-remote-update", "--skip-scan" });
             if (result.Success)
             {
-                m_testStatus = $"Successfully connected to fxv!\nBranch: {result.Data?.CurrentBranch ?? "unknown"}\nUser: {result.Data?.CurrentUser ?? "Logged out"}";
-                m_testMessageType = MessageType.Info;
+                state.TestStatus = $"Successfully connected to fxv!\nBranch: {result.Data?.CurrentBranch ?? "unknown"}\nUser: {result.Data?.CurrentUser ?? "Logged out"}";
+                state.TestMessageType = MessageType.Info;
             }
             else
             {
-                m_testStatus = $"Failed to connect: {result.ErrorMessage}";
-                m_testMessageType = MessageType.Error;
+                state.TestStatus = $"Failed to connect: {result.ErrorMessage}";
+                state.TestMessageType = MessageType.Error;
             }
             SettingsService.NotifySettingsProviderChanged();
+            repaintCallback?.Invoke();
+        }
+    }
+
+    public class FlexVaultSettingsProvider : SettingsProvider
+    {
+        private readonly FlexVaultSettingsUIState m_uiState = new FlexVaultSettingsUIState();
+
+        public FlexVaultSettingsProvider(string path, SettingsScope scope) : base(path, scope) { }
+
+        [SettingsProvider]
+        public static SettingsProvider CreateSettingsProvider()
+        {
+            return new FlexVaultSettingsProvider("Project/Version Control/FlexVault", SettingsScope.Project)
+            {
+                keywords = new[] { "FlexVault", "VCS", "SCM", "Source Control", "fxv" }
+            };
+        }
+
+        public override void OnGUI(string searchContext)
+        {
+            FlexVaultSettingsDrawer.DrawSettings(m_uiState, SettingsService.NotifySettingsProviderChanged);
         }
     }
 }

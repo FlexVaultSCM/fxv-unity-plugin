@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using NUnit.Framework;
 using FlexVault.VCS.Editor.Core;
@@ -68,6 +68,20 @@ namespace FlexVault.VCS.Editor.Tests
             Assert.IsNotNull(root);
             Assert.IsNotEmpty(root);
             Assert.IsFalse(root.Contains("\\"), "Repo root must have normalized forward slashes.");
+        }
+
+        [Test]
+        public void VersionControlObject_HasFlexVaultAttribute()
+        {
+            var type = typeof(FlexVaultVersionControlObject);
+            Assert.IsTrue(typeof(UnityEditor.VersionControl.VersionControlObject).IsAssignableFrom(type));
+            Assert.IsTrue(typeof(UnityEditor.VersionControl.ISettingsInspectorExtension).IsAssignableFrom(type));
+
+            var attr = (UnityEditor.VersionControl.VersionControlAttribute)Attribute.GetCustomAttribute(
+                type,
+                typeof(UnityEditor.VersionControl.VersionControlAttribute));
+            Assert.IsNotNull(attr, "FlexVaultVersionControlObject must have [VersionControl] attribute");
+            Assert.AreEqual("FlexVault", attr.name, "Attribute name must be 'FlexVault' to appear as Mode dropdown option");
         }
     }
 }

@@ -151,6 +151,33 @@ namespace FlexVault.VCS.Editor.Core
             "conflicted".Equals(UnpublishedState, StringComparison.OrdinalIgnoreCase);
 
         [JsonIgnore]
+        public bool NeedsSnapshot => !string.IsNullOrEmpty(WorkspaceState);
+
+        [JsonIgnore]
+        public bool IsUnpublished => !string.IsNullOrEmpty(UnpublishedState);
+
+        [JsonIgnore]
+        public string EffectiveWorkspaceState
+        {
+            get
+            {
+                if (IsConflicted)
+                {
+                    return "conflicted";
+                }
+                if (!string.IsNullOrEmpty(WorkspaceState))
+                {
+                    if (WorkspaceState.Equals("maybe_changed", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return "modified";
+                    }
+                    return WorkspaceState;
+                }
+                return "unchanged";
+            }
+        }
+
+        [JsonIgnore]
         public string EffectiveState
         {
             get
@@ -253,5 +280,68 @@ namespace FlexVault.VCS.Editor.Core
     {
         [JsonProperty("entries")]
         public List<CommitRefJson> Entries { get; set; } = new List<CommitRefJson>();
+    }
+
+    [Serializable]
+    public class ChangeInfoSummary
+    {
+        [JsonProperty("total_changed")]
+        public int TotalChanged { get; set; }
+
+        [JsonProperty("added")]
+        public int Added { get; set; }
+
+        [JsonProperty("modified")]
+        public int Modified { get; set; }
+
+        [JsonProperty("deleted")]
+        public int Deleted { get; set; }
+    }
+
+    [Serializable]
+    public class ChangeInfoItem
+    {
+        [JsonProperty("path")]
+        public string Path { get; set; }
+
+        [JsonProperty("action")]
+        public string Action { get; set; }
+
+        [JsonProperty("size")]
+        public long? Size { get; set; }
+
+        [JsonProperty("old_hash")]
+        public string OldHash { get; set; }
+
+        [JsonProperty("new_hash")]
+        public string NewHash { get; set; }
+    }
+
+    [Serializable]
+    public class ChangeInfoPayload
+    {
+        [JsonProperty("commit")]
+        public CommitInfoDetailJson Commit { get; set; }
+
+        [JsonProperty("commit_hash")]
+        public string CommitHash { get; set; }
+
+        [JsonProperty("description")]
+        public string Description { get; set; }
+
+        [JsonProperty("timestamp_millis_since_epoch_utc")]
+        public long TimestampMillisSinceEpochUtc { get; set; }
+
+        [JsonProperty("author_id")]
+        public string AuthorId { get; set; }
+
+        [JsonProperty("author_display_name")]
+        public string AuthorDisplayName { get; set; }
+
+        [JsonProperty("summary")]
+        public ChangeInfoSummary Summary { get; set; }
+
+        [JsonProperty("changes")]
+        public List<ChangeInfoItem> Changes { get; set; } = new List<ChangeInfoItem>();
     }
 }

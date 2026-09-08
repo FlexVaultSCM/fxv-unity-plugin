@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Reflection;
 using NUnit.Framework;
@@ -118,6 +118,86 @@ namespace FlexVault.VCS.Editor.Tests
             var post = FlexVaultStateCache.GetStatusByPath("Assets/RevertedFile.cs");
             Assert.IsNull(post);
             Assert.AreEqual(0, FlexVaultStateCache.GetChangedFiles().Count);
+        }
+
+        [Test]
+        public void StateCache_WorkspaceVsUnpublishedChanges_FiltersAccurately()
+        {
+            var payload = new StatusPayload
+            {
+                Files = new List<FileStatusItem>
+                {
+                    new FileStatusItem { Path = "Assets/DirtyWorkspace.cs", WorkspaceState = "modified", UnpublishedState = null },
+                    new FileStatusItem { Path = "Assets/SnapshottedDraft.cs", WorkspaceState = null, UnpublishedState = "added" },
+                    new FileStatusItem { Path = "Assets/Both.cs", WorkspaceState = "modified", UnpublishedState = "added" }
+                }
+            };
+            InvokeUpdateCache(payload);
+
+            var workspaceChanges = FlexVaultStateCache.GetWorkspaceChanges();
+            var unpublishedChanges = FlexVaultStateCache.GetUnpublishedChanges();
+            var allChanges = FlexVaultStateCache.GetChangedFiles();
+
+            Assert.AreEqual(2, workspaceChanges.Count, "Should only include files with WorkspaceState");
+            Assert.IsTrue(workspaceChanges.Exists(f => f.Path == "Assets/DirtyWorkspace.cs"));
+            Assert.IsTrue(workspaceChanges.Exists(f => f.Path == "Assets/Both.cs"));
+            Assert.IsFalse(workspaceChanges.Exists(f => f.Path == "Assets/SnapshottedDraft.cs"));
+
+            Assert.AreEqual(2, unpublishedChanges.Count, "Should only include files with UnpublishedState");
+            Assert.IsTrue(unpublishedChanges.Exists(f => f.Path == "Assets/SnapshottedDraft.cs"));
+            Assert.IsTrue(unpublishedChanges.Exists(f => f.Path == "Assets/Both.cs"));
+            Assert.IsFalse(unpublishedChanges.Exists(f => f.Path == "Assets/DirtyWorkspace.cs"));
+
+            Assert.AreEqual(3, allChanges.Count);
+
+            // Simulate snapshotting: DirtyWorkspace becomes clean in workspace, now unpublished in draft
+            var afterSnapshot = new StatusPayload
+            {
+                Files = new List<FileStatusItem>
+                {
+                    new FileStatusItem { Path = "Assets/DirtyWorkspace.cs", WorkspaceState = null, UnpublishedState = "modified" },
+                    new FileStatusItem { Path = "Assets/SnapshottedDraft.cs", WorkspaceState = null, UnpublishedState = "added" },
+                    new FileStatusItem { Path = "Assets/Both.cs", WorkspaceState = null, UnpublishedState = "added" }
+                }
+            };
+            InvokeUpdateCache(afterSnapshot);
+
+            Assert.AreEqual(0, FlexVaultStateCache.GetWorkspaceChanges().Count, "All workspace changes should be cleared after snapshot");
+            Assert.AreEqual(3, FlexVaultStateCache.GetUnpublishedChanges().Count, "All files should now be recorded in unpublished draft");
+        }
+
+        [Test]
+        public void StateCache_PendingAndConflictQueries_ReturnCorrectStatus()
+        {
+            var payload = new StatusPayload
+            {
+                Files = new List<FileStatusItem>
+                {
+                    new FileStatusItem { Path = "Assets/FolderA/Modified.cs", WorkspaceState = "modified" },
+                    new FileStatusItem { Path = "Assets/FolderB/Conflicted.cs", WorkspaceState = "conflicted" },
+                    new FileStatusItem { Path = "Assets/FolderC/DraftOnly.cs", UnpublishedState = "added" }
+                }
+            };
+            InvokeUpdateCache(payload);
+
+            // Pending changes checks: only dirtied workspace files or conflicts are pending
+            Assert.IsTrue(FlexVaultStateCache.HasPendingChanges("Assets/FolderA/Modified.cs"));
+            Assert.IsTrue(FlexVaultStateCache.HasPendingChanges("Assets/FolderB/Conflicted.cs"));
+            Assert.IsFalse(FlexVaultStateCache.HasPendingChanges("Assets/FolderC/DraftOnly.cs"), "Draft-only clean files must not be reported as pending changes");
+            Assert.IsFalse(FlexVaultStateCache.HasPendingChanges("Assets/FolderA/CleanFile.cs"));
+            Assert.IsFalse(FlexVaultStateCache.HasPendingChanges("Assets/NonExistent.cs"));
+
+            // Folder checks: only folders with dirty workspace files or conflicts are pending
+            Assert.IsTrue(FlexVaultStateCache.HasPendingChangesInFolder("Assets/FolderA"));
+            Assert.IsTrue(FlexVaultStateCache.HasPendingChangesInFolder("Assets/FolderB"));
+            Assert.IsFalse(FlexVaultStateCache.HasPendingChangesInFolder("Assets/FolderC"), "Folders with only clean draft files must not be reported as pending");
+            Assert.IsFalse(FlexVaultStateCache.HasPendingChangesInFolder("Assets/CleanFolder"));
+
+            // Conflict checks
+            Assert.IsTrue(FlexVaultStateCache.IsFileConflicted("Assets/FolderB/Conflicted.cs"));
+            Assert.IsFalse(FlexVaultStateCache.IsFileConflicted("Assets/FolderA/Modified.cs"));
+            Assert.IsTrue(FlexVaultStateCache.HasConflictInFolder("Assets/FolderB"));
+            Assert.IsFalse(FlexVaultStateCache.HasConflictInFolder("Assets/FolderA"));
         }
     }
 }

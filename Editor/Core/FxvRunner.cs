@@ -364,6 +364,12 @@ namespace FlexVault.VCS.Editor.Core
             return await RunCommandAsync<HistoryPayload>(args, ct);
         }
 
+        public static async Task<FxvResult<ChangeInfoPayload>> GetChangeInfoAsync(string revision, CancellationToken ct = default)
+        {
+            var args = new List<string> { "changeinfo", revision };
+            return await RunCommandAsync<ChangeInfoPayload>(args, ct);
+        }
+
         public static async Task<bool> CatToFileAsync(
             string repoRelativePath,
             string revision,

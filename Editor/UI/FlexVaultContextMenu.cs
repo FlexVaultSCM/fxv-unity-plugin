@@ -115,7 +115,14 @@ namespace FlexVault.VCS.Editor.UI
         [MenuItem(MenuRoot + "Diff Selected Against Base", true)]
         public static bool ValidateDiffSelected()
         {
-            return Selection.assetGUIDs != null && Selection.assetGUIDs.Length == 1 && FlexVaultSettings.IsInFlexVaultRepository();
+            if (!FlexVaultSettings.IsInFlexVaultRepository()) return false;
+            var guids = Selection.assetGUIDs;
+            if (guids == null || guids.Length != 1) return false;
+
+            string projectPath = AssetDatabase.GUIDToAssetPath(guids[0]);
+            if (string.IsNullOrEmpty(projectPath) || AssetDatabase.IsValidFolder(projectPath)) return false;
+
+            return FlexVaultStateCache.HasPendingChanges(projectPath);
         }
 
         [MenuItem(MenuRoot + "History", false, 140)]
@@ -205,13 +212,51 @@ namespace FlexVault.VCS.Editor.UI
         [MenuItem(MenuRoot + "Resolve Conflict/Take Theirs (Published)", true)]
         public static bool ValidateResolveConflict()
         {
-            return Selection.assetGUIDs != null && Selection.assetGUIDs.Length > 0 && FlexVaultSettings.IsInFlexVaultRepository();
+            if (!FlexVaultSettings.IsInFlexVaultRepository()) return false;
+            var guids = Selection.assetGUIDs;
+            if (guids == null || guids.Length == 0) return false;
+
+            foreach (string guid in guids)
+            {
+                string projectPath = AssetDatabase.GUIDToAssetPath(guid);
+                if (string.IsNullOrEmpty(projectPath)) continue;
+
+                if (AssetDatabase.IsValidFolder(projectPath))
+                {
+                    if (FlexVaultStateCache.HasConflictInFolder(projectPath)) return true;
+                }
+                else
+                {
+                    if (FlexVaultStateCache.IsFileConflicted(projectPath)) return true;
+                }
+            }
+
+            return false;
         }
 
         [MenuItem(MenuRoot + "Revert Selected", true)]
         public static bool ValidateRevertSelected()
         {
-            return Selection.assetGUIDs != null && Selection.assetGUIDs.Length > 0 && FlexVaultSettings.IsInFlexVaultRepository();
+            if (!FlexVaultSettings.IsInFlexVaultRepository()) return false;
+            var guids = Selection.assetGUIDs;
+            if (guids == null || guids.Length == 0) return false;
+
+            foreach (string guid in guids)
+            {
+                string projectPath = AssetDatabase.GUIDToAssetPath(guid);
+                if (string.IsNullOrEmpty(projectPath)) continue;
+
+                if (AssetDatabase.IsValidFolder(projectPath))
+                {
+                    if (FlexVaultStateCache.HasPendingChangesInFolder(projectPath)) return true;
+                }
+                else
+                {
+                    if (FlexVaultStateCache.HasPendingChanges(projectPath)) return true;
+                }
+            }
+
+            return false;
         }
 
         [MenuItem(MenuRoot + "Ignore Selected (Add to .fxvignore)", false, 150)]

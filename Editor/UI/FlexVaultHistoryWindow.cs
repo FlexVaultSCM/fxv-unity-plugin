@@ -105,6 +105,10 @@ namespace FlexVault.VCS.Editor.UI
             EditorGUILayout.EndScrollView();
         }
 
+        private readonly HashSet<string> m_expandedRevisions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, ChangeInfoPayload> m_changeInfoCache = new Dictionary<string, ChangeInfoPayload>(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> m_loadingChangeInfo = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         private void DrawHistoryEntry(CommitRefJson entry, int index)
         {
             var bgStyle = (index % 2 == 0) ? EditorStyles.helpBox : EditorStyles.textArea;
@@ -112,21 +116,37 @@ namespace FlexVault.VCS.Editor.UI
             {
                 EditorGUILayout.BeginHorizontal();
                 {
+                    string rev = entry.RevisionDisplay;
+                    bool isExpanded = m_expandedRevisions.Contains(rev);
+                    string toggleSymbol = isExpanded ? "▼" : "▶";
+                    if (GUILayout.Button(toggleSymbol, EditorStyles.label, GUILayout.Width(18)))
+                    {
+                        if (isExpanded)
+                        {
+                            m_expandedRevisions.Remove(rev);
+                        }
+                        else
+                        {
+                            m_expandedRevisions.Add(rev);
+                            EnsureChangeInfoLoaded(rev);
+                        }
+                    }
+
                     bool isPublished = entry.Commit?.Type == "published";
                     Color badgeColor = isPublished ? new Color(0.2f, 0.6f, 1f) : new Color(0.85f, 0.5f, 0.1f);
                     string typeLabel = isPublished ? "[Published]" : "[Draft]";
 
                     Color prevCol = GUI.contentColor;
                     GUI.contentColor = badgeColor;
-                    GUILayout.Label(typeLabel, EditorStyles.miniBoldLabel, GUILayout.Width(80));
+                    GUILayout.Label(typeLabel, EditorStyles.miniBoldLabel, GUILayout.Width(75));
                     GUI.contentColor = prevCol;
 
-                    GUILayout.Label(entry.RevisionDisplay, EditorStyles.boldLabel, GUILayout.Width(130));
+                    GUILayout.Label(rev, EditorStyles.boldLabel, GUILayout.Width(115));
 
                     string author = !string.IsNullOrEmpty(entry.AuthorDisplayName)
                         ? entry.AuthorDisplayName
                         : (!string.IsNullOrEmpty(entry.AuthorId) ? entry.AuthorId : "Unknown");
-                    GUILayout.Label(author, EditorStyles.miniLabel, GUILayout.Width(120));
+                    GUILayout.Label(author, EditorStyles.miniLabel, GUILayout.Width(110));
 
                     string timeStr = entry.TimestampMillisSinceEpochUtc > 0
                         ? entry.TimestampUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
@@ -137,9 +157,20 @@ namespace FlexVault.VCS.Editor.UI
 
                     if (!string.IsNullOrEmpty(m_filterPath))
                     {
-                        if (GUILayout.Button("Diff This Rev", EditorStyles.miniButton, GUILayout.Width(90)))
+                        if (GUILayout.Button("Diff vs Current", EditorStyles.miniButton, GUILayout.Width(95)))
                         {
-                            DiffWithRevision(m_filterPath, entry.RevisionDisplay);
+                            DiffWithWorkingCopy(m_filterPath, entry.RevisionDisplay);
+                        }
+
+                        // In history, m_entries is in reverse chronological order (newest first).
+                        // The revision immediately preceding this one is at index + 1.
+                        if (index + 1 < m_entries.Count)
+                        {
+                            var prevEntry = m_entries[index + 1];
+                            if (GUILayout.Button("Diff vs Prev", EditorStyles.miniButton, GUILayout.Width(85)))
+                            {
+                                DiffTwoRevisions(m_filterPath, prevEntry.RevisionDisplay, entry.RevisionDisplay);
+                            }
                         }
                     }
                 }
@@ -147,40 +178,144 @@ namespace FlexVault.VCS.Editor.UI
 
                 string desc = !string.IsNullOrWhiteSpace(entry.Description) ? entry.Description.Trim() : "(No description)";
                 EditorGUILayout.LabelField(desc, EditorStyles.wordWrappedLabel);
+
+                if (m_expandedRevisions.Contains(entry.RevisionDisplay))
+                {
+                    DrawExpandedChanges(entry, index);
+                }
             }
             EditorGUILayout.EndVertical();
             GUILayout.Space(2f);
         }
 
-        private async void DiffWithRevision(string repoRelativePath, string revision)
+        private async void EnsureChangeInfoLoaded(string revision)
         {
-            string absolute = FlexVaultMetaHelper.ToAbsolutePath(repoRelativePath);
-            if (!System.IO.File.Exists(absolute))
+            if (m_changeInfoCache.ContainsKey(revision) || m_loadingChangeInfo.Contains(revision))
             {
-                EditorUtility.DisplayDialog("FlexVault Diff", $"Local file does not exist:\n{absolute}", "OK");
                 return;
             }
 
-            string tempDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FlexVaultDiff", Guid.NewGuid().ToString("N"));
-            string revFile = System.IO.Path.Combine(tempDir, $"{revision}_{System.IO.Path.GetFileName(repoRelativePath)}");
-
-            EditorUtility.DisplayProgressBar("FlexVault Diff", $"Extracting revision {revision}...", 0.5f);
+            m_loadingChangeInfo.Add(revision);
             try
             {
-                bool success = await FxvRunner.CatToFileAsync(repoRelativePath, revision, revFile);
-                if (success && System.IO.File.Exists(revFile))
+                var result = await FxvRunner.GetChangeInfoAsync(revision);
+                if (result.Success && result.Data != null)
                 {
-                    FlexVaultDiffHelper.OpenDiff(revFile, absolute);
+                    m_changeInfoCache[revision] = result.Data;
                 }
-                else
-                {
-                    EditorUtility.DisplayDialog("FlexVault Diff", $"Could not extract revision {revision} for '{repoRelativePath}'.", "OK");
-                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[FlexVault] Failed to load change details for {revision}: {ex.Message}");
             }
             finally
             {
-                EditorUtility.ClearProgressBar();
+                m_loadingChangeInfo.Remove(revision);
+                Repaint();
             }
+        }
+
+        private void DrawExpandedChanges(CommitRefJson entry, int commitIndex)
+        {
+            string rev = entry.RevisionDisplay;
+            if (m_loadingChangeInfo.Contains(rev))
+            {
+                EditorGUILayout.LabelField("Loading changed files...", EditorStyles.miniLabel);
+                return;
+            }
+
+            if (!m_changeInfoCache.TryGetValue(rev, out var info) || info.Changes == null || info.Changes.Count == 0)
+            {
+                EditorGUILayout.LabelField("No changed files recorded in this revision.", EditorStyles.miniLabel);
+                return;
+            }
+
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            {
+                EditorGUILayout.BeginHorizontal();
+                {
+                    EditorGUILayout.LabelField(
+                        $"Changed Files ({info.Changes.Count}): +{info.Summary?.Added ?? 0} ~{info.Summary?.Modified ?? 0} -{info.Summary?.Deleted ?? 0}",
+                        EditorStyles.miniBoldLabel);
+                    GUILayout.FlexibleSpace();
+                }
+                EditorGUILayout.EndHorizontal();
+
+                foreach (var file in info.Changes)
+                {
+                    EditorGUILayout.BeginHorizontal();
+                    {
+                        DrawActionBadge(file.Action);
+
+                        if (GUILayout.Button(file.Path, EditorStyles.linkLabel))
+                        {
+                            FlexVaultMetaHelper.PingAsset(file.Path);
+                        }
+
+                        GUILayout.FlexibleSpace();
+
+                        if (!string.Equals(file.Action, "deleted", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (GUILayout.Button("Diff vs Current", EditorStyles.miniButton, GUILayout.Width(90)))
+                            {
+                                DiffWithWorkingCopy(file.Path, rev);
+                            }
+
+                            if (commitIndex + 1 < m_entries.Count)
+                            {
+                                var prev = m_entries[commitIndex + 1];
+                                if (GUILayout.Button("Diff vs Prev", EditorStyles.miniButton, GUILayout.Width(80)))
+                                {
+                                    DiffTwoRevisions(file.Path, prev.RevisionDisplay, rev);
+                                }
+                            }
+                        }
+                    }
+                    EditorGUILayout.EndHorizontal();
+                }
+            }
+            EditorGUILayout.EndVertical();
+        }
+
+        private void DrawActionBadge(string action)
+        {
+            Color color;
+            string text;
+
+            switch (action?.ToLowerInvariant())
+            {
+                case "added":
+                    color = new Color(0.2f, 0.7f, 0.3f);
+                    text = "[+]";
+                    break;
+                case "modified":
+                    color = new Color(0.2f, 0.5f, 0.9f);
+                    text = "[~]";
+                    break;
+                case "deleted":
+                    color = new Color(0.9f, 0.2f, 0.2f);
+                    text = "[-]";
+                    break;
+                default:
+                    color = Color.gray;
+                    text = "[?]";
+                    break;
+            }
+
+            Color prevCol = GUI.contentColor;
+            GUI.contentColor = color;
+            GUILayout.Label(text, EditorStyles.miniBoldLabel, GUILayout.Width(22));
+            GUI.contentColor = prevCol;
+        }
+
+        private async void DiffWithWorkingCopy(string repoRelativePath, string revision)
+        {
+            await FlexVaultDiffHelper.DiffWithWorkingCopyAsync(repoRelativePath, revision);
+        }
+
+        private async void DiffTwoRevisions(string repoRelativePath, string olderRev, string newerRev)
+        {
+            await FlexVaultDiffHelper.DiffTwoRevisionsAsync(repoRelativePath, olderRev, newerRev);
         }
     }
 }

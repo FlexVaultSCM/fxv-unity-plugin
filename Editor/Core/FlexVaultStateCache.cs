@@ -79,6 +79,117 @@ namespace FlexVault.VCS.Editor.Core
             }
         }
 
+        public static List<FileStatusItem> GetWorkspaceChanges()
+        {
+            lock (s_lock)
+            {
+                if (s_latestStatus?.Files == null) return new List<FileStatusItem>();
+                var list = new List<FileStatusItem>();
+                foreach (var f in s_latestStatus.Files)
+                {
+                    if (f.NeedsSnapshot) list.Add(f);
+                }
+                return list;
+            }
+        }
+
+        public static List<FileStatusItem> GetUnpublishedChanges()
+        {
+            lock (s_lock)
+            {
+                if (s_latestStatus?.Files == null) return new List<FileStatusItem>();
+                var list = new List<FileStatusItem>();
+                foreach (var f in s_latestStatus.Files)
+                {
+                    if (f.IsUnpublished) list.Add(f);
+                }
+                return list;
+            }
+        }
+
+        public static bool HasPendingChanges(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return false;
+            var item = GetStatusByPath(path);
+            if (item != null && (item.NeedsSnapshot || item.IsConflicted))
+            {
+                return true;
+            }
+
+            string companionMeta = FlexVaultMetaHelper.GetCompanionMetaPath(path);
+            if (!string.IsNullOrEmpty(companionMeta))
+            {
+                var metaItem = GetStatusByPath(companionMeta);
+                if (metaItem != null && (metaItem.NeedsSnapshot || metaItem.IsConflicted))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public static bool HasPendingChangesInFolder(string folderPath)
+        {
+            if (string.IsNullOrEmpty(folderPath)) return false;
+            string repoRelative = FlexVaultMetaHelper.ToRepoRelativePath(folderPath);
+            string prefix = FlexVaultMetaHelper.NormalizeSeparators(repoRelative).TrimEnd('/') + "/";
+
+            lock (s_lock)
+            {
+                if (s_latestStatus?.Files == null) return false;
+                foreach (var f in s_latestStatus.Files)
+                {
+                    if (f.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (f.NeedsSnapshot || f.IsConflicted)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        public static bool IsFileConflicted(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return false;
+            var item = GetStatusByPath(path);
+            if (item != null && item.IsConflicted) return true;
+
+            string companionMeta = FlexVaultMetaHelper.GetCompanionMetaPath(path);
+            if (!string.IsNullOrEmpty(companionMeta))
+            {
+                var metaItem = GetStatusByPath(companionMeta);
+                if (metaItem != null && metaItem.IsConflicted) return true;
+            }
+
+            return false;
+        }
+
+        public static bool HasConflictInFolder(string folderPath)
+        {
+            if (string.IsNullOrEmpty(folderPath)) return false;
+            string repoRelative = FlexVaultMetaHelper.ToRepoRelativePath(folderPath);
+            string prefix = FlexVaultMetaHelper.NormalizeSeparators(repoRelative).TrimEnd('/') + "/";
+
+            lock (s_lock)
+            {
+                if (s_latestStatus?.Files == null) return false;
+                foreach (var f in s_latestStatus.Files)
+                {
+                    if (f.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && f.IsConflicted)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
         private static bool s_refreshPending;
 
         public static async void RefreshAsync(bool skipScan = false)
@@ -170,7 +281,7 @@ namespace FlexVault.VCS.Editor.Core
                             string guid = AssetDatabase.AssetPathToGUID(logicalAsset);
                             if (!string.IsNullOrEmpty(guid))
                             {
-                                string newState = file.EffectiveState;
+                                string newState = file.EffectiveWorkspaceState;
                                 if (newGuidMap.TryGetValue(guid, out string existingState))
                                 {
                                     if (existingState.Equals("conflicted", StringComparison.OrdinalIgnoreCase) ||
