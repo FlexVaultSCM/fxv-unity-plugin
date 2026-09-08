@@ -570,10 +570,6 @@ namespace FlexVault.VCS.Editor.UI
                 return;
             }
 
-            if (!FlexVaultSafetyGuards.EnsureSafeToMutateWorkspace("Revert", promptSaveDirtyScenes: true)) return;
-
-            var repoRelative = FlexVaultMetaHelper.ExpandWithMeta(m_selectedPaths);
-
             if (!EditorUtility.DisplayDialog(
                 "Confirm Revert",
                 $"Revert {m_selectedPaths.Count} selected file(s) and their companion .meta files to published base?\nAll working tree changes to these files will be lost.",
@@ -582,6 +578,10 @@ namespace FlexVault.VCS.Editor.UI
             {
                 return;
             }
+
+            if (!FlexVaultSafetyGuards.EnsureSafeToMutateWorkspace("Revert", promptSaveDirtyScenes: true)) return;
+
+            var repoRelative = FlexVaultMetaHelper.ExpandWithMeta(m_selectedPaths);
 
             m_isOperating = true;
             EditorApplication.LockReloadAssemblies();
