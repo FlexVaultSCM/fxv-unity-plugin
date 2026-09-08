@@ -141,6 +141,8 @@ namespace FlexVault.VCS.Editor.Core
                 if (s_latestStatus?.Files == null) return false;
                 foreach (var f in s_latestStatus.Files)
                 {
+                    if (string.IsNullOrEmpty(f?.Path)) continue;
+
                     if (f.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                     {
                         if (f.NeedsSnapshot || f.IsConflicted)
@@ -242,6 +244,8 @@ namespace FlexVault.VCS.Editor.Core
                 if (s_latestStatus?.Files == null) return false;
                 foreach (var f in s_latestStatus.Files)
                 {
+                    if (string.IsNullOrEmpty(f?.Path)) continue;
+
                     if (f.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && f.IsConflicted)
                     {
                         return true;
