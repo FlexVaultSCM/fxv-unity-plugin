@@ -261,13 +261,31 @@ namespace FlexVault.VCS.Editor.UI
                     return false;
                 }
 
-                byte[] b1 = File.ReadAllBytes(path1);
-                byte[] b2 = File.ReadAllBytes(path2);
-                if (b1.Length != b2.Length) return false;
-                for (int i = 0; i < b1.Length; i++)
+                const int bufferSize = 64 * 1024;
+                byte[] buffer1 = new byte[bufferSize];
+                byte[] buffer2 = new byte[bufferSize];
+
+                using (var fs1 = new FileStream(path1, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize))
+                using (var fs2 = new FileStream(path2, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize))
                 {
-                    if (b1[i] != b2[i]) return false;
+                    int bytesRead1;
+                    while ((bytesRead1 = fs1.Read(buffer1, 0, bufferSize)) > 0)
+                    {
+                        int bytesRead2 = 0;
+                        while (bytesRead2 < bytesRead1)
+                        {
+                            int chunk = fs2.Read(buffer2, bytesRead2, bytesRead1 - bytesRead2);
+                            if (chunk == 0) return false;
+                            bytesRead2 += chunk;
+                        }
+
+                        for (int i = 0; i < bytesRead1; i++)
+                        {
+                            if (buffer1[i] != buffer2[i]) return false;
+                        }
+                    }
                 }
+
                 return true;
             }
             catch
