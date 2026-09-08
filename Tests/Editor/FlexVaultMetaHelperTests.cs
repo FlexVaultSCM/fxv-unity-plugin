@@ -55,8 +55,8 @@ namespace FlexVault.VCS.Editor.Tests
             var input = new List<string> { "Assets/Scripts/Player.cs" };
             var expanded = FlexVaultMetaHelper.ExpandWithMeta(input);
 
-            CollectionAssert.Contains(expanded, FlexVaultMetaHelper.ToRepoRelativePath(FlexVaultMetaHelper.ToAbsolutePath("Assets/Scripts/Player.cs")));
-            CollectionAssert.Contains(expanded, FlexVaultMetaHelper.ToRepoRelativePath(FlexVaultMetaHelper.ToAbsolutePath("Assets/Scripts/Player.cs.meta")));
+            CollectionAssert.Contains(expanded, "Assets/Scripts/Player.cs");
+            CollectionAssert.Contains(expanded, "Assets/Scripts/Player.cs.meta");
         }
 
         [Test]
@@ -65,8 +65,8 @@ namespace FlexVault.VCS.Editor.Tests
             var input = new List<string> { "Assets/Scripts/Player.cs.meta" };
             var expanded = FlexVaultMetaHelper.ExpandWithMeta(input);
 
-            CollectionAssert.Contains(expanded, FlexVaultMetaHelper.ToRepoRelativePath(FlexVaultMetaHelper.ToAbsolutePath("Assets/Scripts/Player.cs")));
-            CollectionAssert.Contains(expanded, FlexVaultMetaHelper.ToRepoRelativePath(FlexVaultMetaHelper.ToAbsolutePath("Assets/Scripts/Player.cs.meta")));
+            CollectionAssert.Contains(expanded, "Assets/Scripts/Player.cs");
+            CollectionAssert.Contains(expanded, "Assets/Scripts/Player.cs.meta");
         }
 
         [Test]
