@@ -169,6 +169,67 @@ namespace FlexVault.VCS.Editor.Core
             return false;
         }
 
+        public static bool IsCurrentWorkspaceRevision(CommitRefJson entry)
+        {
+            if (entry == null) return false;
+
+            StatusPayload status;
+            lock (s_lock)
+            {
+                status = s_latestStatus;
+            }
+
+            if (status == null) return false;
+
+            // 1. Match by commit hash if available
+            string currentHash = status.HeadCommit?.LocalSnapshot?.CommitHash
+                ?? status.HeadCommit?.PublishedHead?.CommitHash;
+            if (!string.IsNullOrEmpty(currentHash) && !string.IsNullOrEmpty(entry.CommitHash))
+            {
+                if (string.Equals(entry.CommitHash, currentHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            // 2. Match by revision spec display (e.g. main.-.25, main.12.3, main.12)
+            string currentRev = status.HeadCommit?.LocalSnapshot?.RevisionDisplay
+                ?? status.HeadCommit?.PublishedHead?.RevisionDisplay
+                ?? (status.SyncStatus?.SyncedRevision != null && status.CurrentBranch != null
+                    ? $"{status.CurrentBranch}.{status.SyncStatus.SyncedRevision.Value}"
+                    : null);
+
+            if (!string.IsNullOrEmpty(currentRev) && !string.IsNullOrEmpty(entry.RevisionDisplay))
+            {
+                if (string.Equals(entry.RevisionDisplay, currentRev, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            // 3. Fallback to commit metadata comparison
+            var currentCommit = status.HeadCommit?.LocalSnapshot?.Commit
+                ?? status.HeadCommit?.PublishedHead?.Commit;
+
+            if (currentCommit != null && entry.Commit != null)
+            {
+                if (string.Equals(currentCommit.Branch, entry.Commit.Branch, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(currentCommit.Type, entry.Commit.Type, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (currentCommit.DraftRevision.HasValue && entry.Commit.DraftRevision.HasValue)
+                    {
+                        return currentCommit.DraftRevision.Value == entry.Commit.DraftRevision.Value;
+                    }
+                    if (currentCommit.Revision.HasValue && entry.Commit.Revision.HasValue)
+                    {
+                        return currentCommit.Revision.Value == entry.Commit.Revision.Value;
+                    }
+                }
+            }
+
+            return false;
+        }
+
         public static bool HasConflictInFolder(string folderPath)
         {
             if (string.IsNullOrEmpty(folderPath)) return false;

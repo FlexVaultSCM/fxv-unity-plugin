@@ -92,6 +92,35 @@ namespace FlexVault.VCS.Editor.UI
             {
                 DrawHistoryTab();
             }
+
+            DrawBottomStatusBar();
+        }
+
+        private void DrawBottomStatusBar()
+        {
+            var status = FlexVaultStateCache.LatestStatus;
+            var syncStatus = status?.SyncStatus;
+
+            string syncedRevText = syncStatus?.SyncedRevision != null
+                ? (status.CurrentBranch != null ? $"{status.CurrentBranch}.{syncStatus.SyncedRevision.Value}" : syncStatus.SyncedRevision.Value.ToString())
+                : (status?.HeadCommit?.LocalSnapshot != null ? status.HeadCommit.LocalSnapshot.RevisionDisplay : "None");
+
+            EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
+            {
+                string syncIcon = (syncStatus != null && !syncStatus.UpToDate && syncStatus.RevisionsBehind > 0) ? "▼" : "✓";
+                string statusText = (syncStatus != null && !syncStatus.UpToDate && syncStatus.RevisionsBehind > 0)
+                    ? $"{syncIcon} Synced: {syncedRevText} ({syncStatus.RevisionsBehind} behind remote HEAD {syncStatus.PublishedHeadRevision})"
+                    : $"{syncIcon} Synced: {syncedRevText}";
+
+                GUILayout.Label(statusText, EditorStyles.miniLabel);
+                GUILayout.FlexibleSpace();
+
+                if (FlexVaultStateCache.IsRefreshing)
+                {
+                    GUILayout.Label("Refreshing...", EditorStyles.miniLabel);
+                }
+            }
+            EditorGUILayout.EndHorizontal();
         }
 
         private void DrawNotRepositoryUI()
@@ -121,11 +150,16 @@ namespace FlexVault.VCS.Editor.UI
             string user = !string.IsNullOrEmpty(status?.CurrentUser) ? status.CurrentUser : "Logged out";
             var syncStatus = status?.SyncStatus;
 
+            string syncedRevText = syncStatus?.SyncedRevision != null
+                ? (status.CurrentBranch != null ? $"{status.CurrentBranch}.{syncStatus.SyncedRevision.Value}" : syncStatus.SyncedRevision.Value.ToString())
+                : (status?.HeadCommit?.LocalSnapshot != null ? status.HeadCommit.LocalSnapshot.RevisionDisplay : "None");
+
             EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
             {
                 GUILayout.Label($"Branch: {branch}", EditorStyles.boldLabel);
+                GUILayout.Label($"Synced: {syncedRevText}", EditorStyles.miniLabel);
 
-                if (GUILayout.Button("Goto...", EditorStyles.toolbarDropDown, GUILayout.Width(65)))
+                if (GUILayout.Button("Go To...", EditorStyles.toolbarDropDown, GUILayout.Width(70)))
                 {
                     PromptGotoRevision();
                 }
@@ -607,10 +641,9 @@ namespace FlexVault.VCS.Editor.UI
                     }
                     else
                     {
-                        EditorUtility.DisplayDialog(
-                            "Sync Complete",
-                            $"Workspace updated to {result.Data?.TargetRevision ?? "HEAD"}. ({result.Data?.FilesUpdatedCount ?? 0} files updated).",
-                            "OK");
+                        string msg = $"Workspace updated to {result.Data?.TargetRevision ?? "HEAD"} ({result.Data?.FilesUpdatedCount ?? 0} file(s) updated).";
+                        ShowNotification(new GUIContent(msg));
+                        Debug.Log($"[FlexVault] {msg}");
                     }
                 }
             }
@@ -739,8 +772,19 @@ namespace FlexVault.VCS.Editor.UI
                 for (int i = 0; i < m_historyEntries.Count; i++)
                 {
                     var entry = m_historyEntries[i];
+                    bool isCurrent = FlexVaultStateCache.IsCurrentWorkspaceRevision(entry);
+
+                    var prevBg = GUI.backgroundColor;
+                    if (isCurrent)
+                    {
+                        GUI.backgroundColor = EditorGUIUtility.isProSkin
+                            ? new Color(0.18f, 0.42f, 0.28f, 1f)
+                            : new Color(0.72f, 0.92f, 0.78f, 1f);
+                    }
                     var bg = (i % 2 == 0) ? EditorStyles.helpBox : EditorStyles.textArea;
                     EditorGUILayout.BeginVertical(bg);
+                    GUI.backgroundColor = prevBg;
+
                     {
                         EditorGUILayout.BeginHorizontal();
                         {
@@ -757,6 +801,14 @@ namespace FlexVault.VCS.Editor.UI
                                     m_expandedRevisions.Add(entry.RevisionDisplay);
                                     EnsureChangeInfoLoaded(entry.RevisionDisplay);
                                 }
+                            }
+
+                            if (isCurrent)
+                            {
+                                Color prevCol2 = GUI.contentColor;
+                                GUI.contentColor = new Color(0.2f, 0.9f, 0.4f);
+                                GUILayout.Label("● Current", EditorStyles.boldLabel, GUILayout.Width(68));
+                                GUI.contentColor = prevCol2;
                             }
 
                             bool isPublished = entry.Commit?.Type == "published";
@@ -777,10 +829,12 @@ namespace FlexVault.VCS.Editor.UI
                             GUILayout.Label(date, EditorStyles.miniLabel, GUILayout.Width(110));
 
                             GUILayout.FlexibleSpace();
-                            if (GUILayout.Button("Switch To", EditorStyles.miniButton, GUILayout.Width(70)))
+                            GUI.enabled = !isCurrent && !m_isOperating;
+                            if (GUILayout.Button(isCurrent ? "Current" : "Go To", EditorStyles.miniButton, GUILayout.Width(65)))
                             {
                                 ExecuteGoto(entry.RevisionDisplay);
                             }
+                            GUI.enabled = true;
                         }
                         EditorGUILayout.EndHorizontal();
 
@@ -921,7 +975,7 @@ namespace FlexVault.VCS.Editor.UI
 
         private void PromptGotoRevision()
         {
-            EditorInputDialog.Show("Goto Revision", "Enter target revision spec to move workspace state to (e.g. main.11 or main.11.2):", "", (rev) =>
+            EditorInputDialog.Show("Go To Revision", "Enter target revision spec to move workspace state to (e.g. main.11 or main.11.2):", "", (rev) =>
             {
                 if (!string.IsNullOrWhiteSpace(rev))
                 {
@@ -930,20 +984,19 @@ namespace FlexVault.VCS.Editor.UI
             });
         }
 
-        private async void ExecuteGoto(string targetRevision)
+        public static async void ExecuteGotoRevision(string targetRevision, Action onComplete = null)
         {
-            if (!FlexVaultSafetyGuards.EnsureSafeToMutateWorkspace("Goto Revision", promptSaveDirtyScenes: true)) return;
+            if (!FlexVaultSafetyGuards.EnsureSafeToMutateWorkspace("Go To Revision", promptSaveDirtyScenes: true)) return;
 
             if (!EditorUtility.DisplayDialog(
-                "Confirm Goto Revision",
+                "Confirm Go To Revision",
                 $"Move workspace to '{targetRevision}'?\nYour current workspace will be snapshotted first to preserve local work.",
-                "Goto",
+                "Go To",
                 "Cancel"))
             {
                 return;
             }
 
-            m_isOperating = true;
             EditorApplication.LockReloadAssemblies();
 
             try
@@ -952,11 +1005,11 @@ namespace FlexVault.VCS.Editor.UI
                 var result = await FxvRunner.GotoAsync(targetRevision);
                 if (!result.Success)
                 {
-                    EditorUtility.DisplayDialog("Goto Failed", result.ErrorMessage, "OK");
+                    EditorUtility.DisplayDialog("Go To Failed", result.ErrorMessage, "OK");
                 }
                 else
                 {
-                    EditorUtility.DisplayDialog("Goto Complete", $"Workspace state moved to '{targetRevision}'.", "OK");
+                    EditorUtility.DisplayDialog("Go To Complete", $"Workspace state moved to '{targetRevision}'.", "OK");
                 }
             }
             finally
@@ -964,10 +1017,19 @@ namespace FlexVault.VCS.Editor.UI
                 EditorUtility.ClearProgressBar();
                 AssetDatabase.Refresh();
                 EditorApplication.UnlockReloadAssemblies();
-                m_isOperating = false;
                 FlexVaultStateCache.RefreshAsync();
-                Repaint();
+                onComplete?.Invoke();
             }
+        }
+
+        private void ExecuteGoto(string targetRevision)
+        {
+            m_isOperating = true;
+            ExecuteGotoRevision(targetRevision, () =>
+            {
+                m_isOperating = false;
+                Repaint();
+            });
         }
     }
 

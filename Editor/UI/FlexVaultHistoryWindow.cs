@@ -111,8 +111,18 @@ namespace FlexVault.VCS.Editor.UI
 
         private void DrawHistoryEntry(CommitRefJson entry, int index)
         {
+            bool isCurrent = FlexVaultStateCache.IsCurrentWorkspaceRevision(entry);
+            var prevBg = GUI.backgroundColor;
+            if (isCurrent)
+            {
+                GUI.backgroundColor = EditorGUIUtility.isProSkin
+                    ? new Color(0.18f, 0.42f, 0.28f, 1f)
+                    : new Color(0.72f, 0.92f, 0.78f, 1f);
+            }
             var bgStyle = (index % 2 == 0) ? EditorStyles.helpBox : EditorStyles.textArea;
             EditorGUILayout.BeginVertical(bgStyle);
+            GUI.backgroundColor = prevBg;
+
             {
                 EditorGUILayout.BeginHorizontal();
                 {
@@ -130,6 +140,14 @@ namespace FlexVault.VCS.Editor.UI
                             m_expandedRevisions.Add(rev);
                             EnsureChangeInfoLoaded(rev);
                         }
+                    }
+
+                    if (isCurrent)
+                    {
+                        Color prevCol2 = GUI.contentColor;
+                        GUI.contentColor = new Color(0.2f, 0.9f, 0.4f);
+                        GUILayout.Label("● Current", EditorStyles.boldLabel, GUILayout.Width(68));
+                        GUI.contentColor = prevCol2;
                     }
 
                     bool isPublished = entry.Commit?.Type == "published";
@@ -172,6 +190,15 @@ namespace FlexVault.VCS.Editor.UI
                                 DiffTwoRevisions(m_filterPath, prevEntry.RevisionDisplay, entry.RevisionDisplay);
                             }
                         }
+                    }
+                    else
+                    {
+                        GUI.enabled = !isCurrent;
+                        if (GUILayout.Button(isCurrent ? "Current" : "Go To", EditorStyles.miniButton, GUILayout.Width(65)))
+                        {
+                            FlexVaultWindow.ExecuteGotoRevision(entry.RevisionDisplay, Repaint);
+                        }
+                        GUI.enabled = true;
                     }
                 }
                 EditorGUILayout.EndHorizontal();
