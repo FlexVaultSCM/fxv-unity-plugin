@@ -197,38 +197,7 @@ namespace FlexVault.VCS.Editor.Core
                         result.Add(folderMeta);
                     }
 
-                    try
-                    {
-                        var dirs = Directory.GetDirectories(absolute, "*", SearchOption.AllDirectories);
-                        foreach (var d in dirs)
-                        {
-                            string dirRepoRel = ToRepoRelativePath(d);
-                            string subFolderMeta = GetCompanionMetaPath(dirRepoRel);
-                            if (!string.IsNullOrEmpty(subFolderMeta))
-                            {
-                                result.Add(subFolderMeta);
-                            }
-                        }
-
-                        var files = Directory.GetFiles(absolute, "*", SearchOption.AllDirectories);
-                        foreach (var f in files)
-                        {
-                            string fileRepoRel = ToRepoRelativePath(f);
-                            result.Add(fileRepoRel);
-                            if (IsMetaFile(fileRepoRel))
-                            {
-                                result.Add(GetLogicalAssetPath(fileRepoRel));
-                            }
-                            else
-                            {
-                                result.Add(GetCompanionMetaPath(fileRepoRel));
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.LogWarning($"[FlexVault] Error traversing directory '{absolute}': {ex.Message}");
-                    }
+                    SafeEnumerateDirectory(absolute, result);
                 }
                 else
                 {
@@ -248,6 +217,58 @@ namespace FlexVault.VCS.Editor.Core
             }
 
             return new List<string>(result);
+        }
+
+        private static void SafeEnumerateDirectory(string rootDir, HashSet<string> result)
+        {
+            var queue = new Queue<string>();
+            queue.Enqueue(rootDir);
+
+            while (queue.Count > 0)
+            {
+                string current = queue.Dequeue();
+
+                try
+                {
+                    string[] subDirs = Directory.GetDirectories(current);
+                    foreach (var d in subDirs)
+                    {
+                        string dirRepoRel = ToRepoRelativePath(d);
+                        string subFolderMeta = GetCompanionMetaPath(dirRepoRel);
+                        if (!string.IsNullOrEmpty(subFolderMeta))
+                        {
+                            result.Add(subFolderMeta);
+                        }
+                        queue.Enqueue(d);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[FlexVault] Error traversing subdirectories of '{current}': {ex.Message}");
+                }
+
+                try
+                {
+                    string[] files = Directory.GetFiles(current);
+                    foreach (var f in files)
+                    {
+                        string fileRepoRel = ToRepoRelativePath(f);
+                        result.Add(fileRepoRel);
+                        if (IsMetaFile(fileRepoRel))
+                        {
+                            result.Add(GetLogicalAssetPath(fileRepoRel));
+                        }
+                        else
+                        {
+                            result.Add(GetCompanionMetaPath(fileRepoRel));
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[FlexVault] Error traversing files in '{current}': {ex.Message}");
+                }
+            }
         }
 
         public static void PingAsset(string repoOrProjectPath)
