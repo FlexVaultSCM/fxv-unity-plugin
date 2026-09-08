@@ -8,7 +8,7 @@ namespace FlexVault.VCS.Editor.Core
     {
         public static bool EnsureSafeToMutateWorkspace(string operationName, bool promptSaveDirtyScenes = true)
         {
-            if (EditorApplication.isPlaying || EditorApplication.isPaused)
+            if (EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isPlaying || EditorApplication.isPaused)
             {
                 EditorUtility.DisplayDialog(
                     $"{operationName} Blocked",
@@ -22,6 +22,15 @@ namespace FlexVault.VCS.Editor.Core
                 EditorUtility.DisplayDialog(
                     $"{operationName} Blocked",
                     $"Cannot perform '{operationName}' while the Unity Editor is compiling scripts.\nPlease wait for compilation to finish before modifying workspace files.",
+                    "OK");
+                return false;
+            }
+
+            if (EditorApplication.isUpdating)
+            {
+                EditorUtility.DisplayDialog(
+                    $"{operationName} Blocked",
+                    $"Cannot perform '{operationName}' while the AssetDatabase is updating assets.\nPlease wait for asset updates to finish before modifying workspace files.",
                     "OK");
                 return false;
             }
