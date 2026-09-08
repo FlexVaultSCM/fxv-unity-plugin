@@ -255,9 +255,10 @@ namespace FlexVault.VCS.Editor.Core
             return false;
         }
 
+        private const double RefreshCooldownSeconds = 2.0;
         private static bool s_refreshPending;
 
-        public static async void RefreshAsync(bool skipScan = false)
+        public static async void RefreshAsync(bool skipScan = false, bool force = false)
         {
             lock (s_lock)
             {
@@ -266,6 +267,23 @@ namespace FlexVault.VCS.Editor.Core
                     s_refreshPending = true;
                     return;
                 }
+
+                double elapsed = EditorApplication.timeSinceStartup - s_lastRefreshTime;
+                if (!force && s_lastRefreshTime > 0 && elapsed < RefreshCooldownSeconds)
+                {
+                    if (!s_refreshPending)
+                    {
+                        s_refreshPending = true;
+                        int delayMs = (int)Math.Max(100, (RefreshCooldownSeconds - elapsed) * 1000);
+                        EditorApplication.delayCall += async () =>
+                        {
+                            await Task.Delay(delayMs);
+                            RefreshAsync(skipScan, force: false);
+                        };
+                    }
+                    return;
+                }
+
                 s_isRefreshing = true;
             }
 

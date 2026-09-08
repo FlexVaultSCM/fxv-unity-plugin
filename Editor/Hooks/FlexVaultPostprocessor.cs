@@ -56,7 +56,7 @@ namespace FlexVault.VCS.Editor.Hooks
                 s_isScheduled = false;
                 s_lastChangeTime = -1;
 
-                FlexVaultStateCache.RefreshAsync();
+                FlexVaultStateCache.RefreshAsync(skipScan: true);
             }
         }
     }

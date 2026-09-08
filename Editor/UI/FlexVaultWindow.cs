@@ -184,7 +184,7 @@ namespace FlexVault.VCS.Editor.UI
                 GUI.enabled = !FlexVaultStateCache.IsRefreshing;
                 if (GUILayout.Button("Refresh", EditorStyles.toolbarButton, GUILayout.Width(60)))
                 {
-                    FlexVaultStateCache.RefreshAsync();
+                    FlexVaultStateCache.RefreshAsync(skipScan: false, force: true);
                 }
                 GUI.enabled = true;
             }
