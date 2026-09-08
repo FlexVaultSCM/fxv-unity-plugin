@@ -1073,22 +1073,35 @@ namespace FlexVault.VCS.Editor.UI
                 e.Use();
             }
 
+            bool doClose = false;
+            Action actionToInvoke = null;
+
             EditorGUILayout.BeginHorizontal();
             {
                 GUILayout.FlexibleSpace();
                 if (GUILayout.Button("Cancel", GUILayout.Width(80)))
                 {
-                    Close();
+                    doClose = true;
                 }
                 if (GUILayout.Button("OK", GUILayout.Width(80)) || submit)
                 {
                     string text = m_inputText;
                     var callback = m_onConfirm;
-                    Close();
-                    callback?.Invoke(text);
+                    doClose = true;
+                    actionToInvoke = () => callback?.Invoke(text);
                 }
             }
             EditorGUILayout.EndHorizontal();
+
+            if (doClose)
+            {
+                Close();
+                if (actionToInvoke != null)
+                {
+                    EditorApplication.delayCall += () => actionToInvoke();
+                }
+                GUIUtility.ExitGUI();
+            }
         }
     }
 }
