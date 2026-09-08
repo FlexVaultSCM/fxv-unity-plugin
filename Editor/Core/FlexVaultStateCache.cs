@@ -138,14 +138,12 @@ namespace FlexVault.VCS.Editor.Core
 
             lock (s_lock)
             {
-                if (s_latestStatus?.Files == null) return false;
-                foreach (var f in s_latestStatus.Files)
+                foreach (var kvp in s_pathToStatus)
                 {
-                    if (string.IsNullOrEmpty(f?.Path)) continue;
-
-                    if (f.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    if (kvp.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                     {
-                        if (f.NeedsSnapshot || f.IsConflicted)
+                        var f = kvp.Value;
+                        if (f != null && (f.NeedsSnapshot || f.IsConflicted))
                         {
                             return true;
                         }
@@ -241,14 +239,15 @@ namespace FlexVault.VCS.Editor.Core
 
             lock (s_lock)
             {
-                if (s_latestStatus?.Files == null) return false;
-                foreach (var f in s_latestStatus.Files)
+                foreach (var kvp in s_pathToStatus)
                 {
-                    if (string.IsNullOrEmpty(f?.Path)) continue;
-
-                    if (f.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && f.IsConflicted)
+                    if (kvp.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                     {
-                        return true;
+                        var f = kvp.Value;
+                        if (f != null && f.IsConflicted)
+                        {
+                            return true;
+                        }
                     }
                 }
             }
