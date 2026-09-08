@@ -151,6 +151,7 @@ namespace FlexVault.VCS.Editor.UI
             string tempDir = Path.Combine(Path.GetTempPath(), "FlexVaultDiff", Guid.NewGuid().ToString("N"));
             string safeRevName = revision.Replace('/', '_').Replace('\\', '_').Replace(':', '_');
             string revFile = Path.Combine(tempDir, $"{safeRevName}_{Path.GetFileName(repoRelativePath)}");
+            bool diffLaunched = false;
 
             EditorUtility.DisplayProgressBar("FlexVault Diff", $"Extracting revision {revision}...", 0.5f);
             try
@@ -168,6 +169,7 @@ namespace FlexVault.VCS.Editor.UI
                     }
 
                     OpenDiff(revFile, absolute);
+                    diffLaunched = true;
                 }
                 else
                 {
@@ -184,6 +186,10 @@ namespace FlexVault.VCS.Editor.UI
             finally
             {
                 EditorUtility.ClearProgressBar();
+                if (!diffLaunched)
+                {
+                    TryDeleteDirectory(tempDir);
+                }
             }
         }
 
@@ -195,6 +201,7 @@ namespace FlexVault.VCS.Editor.UI
             string safeNewer = newerRev.Replace('/', '_').Replace('\\', '_').Replace(':', '_');
             string olderFile = Path.Combine(tempDir, $"{safeOlder}_{fileName}");
             string newerFile = Path.Combine(tempDir, $"{safeNewer}_{fileName}");
+            bool diffLaunched = false;
 
             EditorUtility.DisplayProgressBar("FlexVault Diff", $"Extracting revisions {olderRev} and {newerRev}...", 0.3f);
             try
@@ -227,6 +234,7 @@ namespace FlexVault.VCS.Editor.UI
                 }
 
                 OpenDiff(olderFile, newerFile);
+                diffLaunched = true;
             }
             catch (Exception ex)
             {
@@ -235,6 +243,10 @@ namespace FlexVault.VCS.Editor.UI
             finally
             {
                 EditorUtility.ClearProgressBar();
+                if (!diffLaunched)
+                {
+                    TryDeleteDirectory(tempDir);
+                }
             }
         }
 
@@ -288,6 +300,44 @@ namespace FlexVault.VCS.Editor.UI
                 catch { }
             }
             return null;
+        }
+
+        [InitializeOnLoadMethod]
+        private static void InitializeTempCleanup()
+        {
+            EditorApplication.quitting += PruneStaleTempDiffDirectories;
+            PruneStaleTempDiffDirectories();
+        }
+
+        public static void PruneStaleTempDiffDirectories()
+        {
+            try
+            {
+                string baseTemp = Path.Combine(Path.GetTempPath(), "FlexVaultDiff");
+                if (Directory.Exists(baseTemp))
+                {
+                    Directory.Delete(baseTemp, recursive: true);
+                }
+            }
+            catch
+            {
+                // Best effort cleanup; some files may still be locked by external diff viewers
+            }
+        }
+
+        private static void TryDeleteDirectory(string path)
+        {
+            try
+            {
+                if (Directory.Exists(path))
+                {
+                    Directory.Delete(path, recursive: true);
+                }
+            }
+            catch
+            {
+                // Best effort
+            }
         }
     }
 }
