@@ -181,6 +181,7 @@ namespace FlexVault.VCS.Editor.UI
                 GUILayout.FlexibleSpace();
                 GUILayout.Label($"User: {user}", EditorStyles.miniLabel);
 
+                GUI.enabled = !FlexVaultStateCache.IsRefreshing;
                 if (GUILayout.Button("Refresh", EditorStyles.toolbarButton, GUILayout.Width(60)))
                 {
                     FlexVaultStateCache.RefreshAsync();
@@ -986,7 +987,11 @@ namespace FlexVault.VCS.Editor.UI
 
         public static async void ExecuteGotoRevision(string targetRevision, Action onComplete = null)
         {
-            if (!FlexVaultSafetyGuards.EnsureSafeToMutateWorkspace("Go To Revision", promptSaveDirtyScenes: true)) return;
+            if (!FlexVaultSafetyGuards.EnsureSafeToMutateWorkspace("Go To Revision", promptSaveDirtyScenes: true))
+            {
+                onComplete?.Invoke();
+                return;
+            }
 
             if (!EditorUtility.DisplayDialog(
                 "Confirm Go To Revision",
@@ -994,6 +999,7 @@ namespace FlexVault.VCS.Editor.UI
                 "Go To",
                 "Cancel"))
             {
+                onComplete?.Invoke();
                 return;
             }
 
