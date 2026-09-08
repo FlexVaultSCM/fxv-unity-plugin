@@ -3,7 +3,8 @@
     "rootNamespace": "FlexVault.VCS.Editor.Tests",
     "references": [
         "FlexVault.VCS.Editor",
-        "UnityEngine.TestRunner"
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
     ],
     "includePlatforms": [
         "Editor"
