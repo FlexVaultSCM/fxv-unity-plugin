@@ -102,6 +102,30 @@ namespace FlexVault.VCS.Editor.Core
         public static readonly FxvCliVersion MinVersion = new FxvCliVersion(0, 5, 0); // >= 0.5.0
         public static readonly FxvCliVersion MaxVersion = new FxvCliVersion(0, 9, 0); // < 0.9.0
 
+        public static bool? IsVersionCompatible => s_isVersionCompatible;
+        public static string LastVersionString => s_lastVersionString;
+        public static string LastErrorMessage => s_lastErrorMessage;
+
+        private static bool? s_isVersionCompatible;
+        private static string s_lastVersionString;
+        private static string s_lastErrorMessage;
+
+        public static void ResetCachedVersion()
+        {
+            s_isVersionCompatible = null;
+            s_lastVersionString = null;
+            s_lastErrorMessage = null;
+        }
+
+        public static bool CheckAndCacheVersion(string versionStr, out string errorMessage)
+        {
+            bool ok = CheckVersion(versionStr, out errorMessage);
+            s_isVersionCompatible = ok;
+            s_lastVersionString = versionStr;
+            s_lastErrorMessage = errorMessage;
+            return ok;
+        }
+
         public static bool CheckVersion(string versionStr, out string errorMessage)
         {
             errorMessage = null;

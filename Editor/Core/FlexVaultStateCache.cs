@@ -21,10 +21,11 @@ namespace FlexVault.VCS.Editor.Core
 
         static FlexVaultStateCache()
         {
-            EditorApplication.delayCall += () =>
+            EditorApplication.delayCall += async () =>
             {
                 if (FlexVaultSettings.IsInFlexVaultRepository())
                 {
+                    await FxvRunner.EnsureVersionCheckedAsync();
                     RefreshAsync();
                 }
             };

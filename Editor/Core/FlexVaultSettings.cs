@@ -15,7 +15,11 @@ namespace FlexVault.VCS.Editor.Core
         public static string CustomBinaryPath
         {
             get => EditorPrefs.GetString(BinaryPathPrefKey, string.Empty);
-            set => EditorPrefs.SetString(BinaryPathPrefKey, value);
+            set
+            {
+                EditorPrefs.SetString(BinaryPathPrefKey, value);
+                FlexVaultVersionGuard.ResetCachedVersion();
+            }
         }
 
         public static string GetEffectiveBinaryPath()

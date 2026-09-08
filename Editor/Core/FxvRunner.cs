@@ -24,6 +24,56 @@ namespace FlexVault.VCS.Editor.Core
     {
         private static readonly SemaphoreSlim s_processSemaphore = new SemaphoreSlim(1, 1);
 
+        public static async Task<bool> EnsureVersionCheckedAsync(string customBinaryPath = null)
+        {
+            if (FlexVaultVersionGuard.IsVersionCompatible.HasValue)
+            {
+                return FlexVaultVersionGuard.IsVersionCompatible.Value;
+            }
+
+            string binaryPath = !string.IsNullOrEmpty(customBinaryPath) ? customBinaryPath : FlexVaultSettings.GetEffectiveBinaryPath();
+            if (string.IsNullOrEmpty(binaryPath))
+            {
+                return false;
+            }
+
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = binaryPath,
+                    Arguments = "--version",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    StandardOutputEncoding = Encoding.UTF8
+                };
+
+                using (var process = Process.Start(startInfo))
+                {
+                    if (process != null)
+                    {
+                        string stdout = await process.StandardOutput.ReadToEndAsync();
+                        await Task.Run(() => process.WaitForExit(5000));
+                        if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(stdout))
+                        {
+                            string trimmed = stdout.Trim();
+                            string[] parts = trimmed.Split(' ');
+                            string versionPart = parts.Length > 1 ? parts[1] : parts[0];
+                            return FlexVaultVersionGuard.CheckAndCacheVersion(versionPart, out string _);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"[FlexVault] Failed to probe CLI version: {ex.Message}");
+            }
+
+            return false;
+        }
+
         public static async Task<FxvResult<T>> RunCommandAsync<T>(
             IEnumerable<string> args,
             CancellationToken cancellationToken = default,
@@ -31,6 +81,14 @@ namespace FlexVault.VCS.Editor.Core
             string customBinaryPath = null)
         {
             var result = new FxvResult<T>();
+
+            if (FlexVaultVersionGuard.IsVersionCompatible == false)
+            {
+                result.Success = false;
+                result.ErrorMessage = FlexVaultVersionGuard.LastErrorMessage ?? "Incompatible FlexVault CLI version.";
+                return result;
+            }
+
             string binaryPath = !string.IsNullOrEmpty(customBinaryPath) ? customBinaryPath : FlexVaultSettings.GetEffectiveBinaryPath();
             string workingDir = FlexVaultSettings.GetRepositoryRoot();
 
@@ -152,7 +210,7 @@ namespace FlexVault.VCS.Editor.Core
                                     {
                                         if (envelope.Program != null && !string.IsNullOrEmpty(envelope.Program.Version))
                                         {
-                                            if (!FlexVaultVersionGuard.CheckVersion(envelope.Program.Version, out string versionError))
+                                            if (!FlexVaultVersionGuard.CheckAndCacheVersion(envelope.Program.Version, out string versionError))
                                             {
                                                 result.Success = false;
                                                 result.ErrorMessage = versionError;
@@ -378,6 +436,12 @@ namespace FlexVault.VCS.Editor.Core
             string customBinaryPath = null,
             int timeoutMs = 30000)
         {
+            if (FlexVaultVersionGuard.IsVersionCompatible == false)
+            {
+                UnityEngine.Debug.LogError($"[FlexVault] CatToFileAsync blocked: {FlexVaultVersionGuard.LastErrorMessage}");
+                return false;
+            }
+
             string binaryPath = !string.IsNullOrEmpty(customBinaryPath) ? customBinaryPath : FlexVaultSettings.GetEffectiveBinaryPath();
             string workingDir = FlexVaultSettings.GetRepositoryRoot();
 

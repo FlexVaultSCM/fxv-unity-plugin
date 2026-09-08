@@ -94,5 +94,22 @@ namespace FlexVault.VCS.Editor.Tests
             Assert.IsNotNull(errorMalformed);
             StringAssert.Contains("Invalid FlexVault CLI version string", errorMalformed);
         }
+
+        [Test]
+        public void CheckAndCacheVersion_CachesResultAndResets()
+        {
+            FlexVaultVersionGuard.ResetCachedVersion();
+            Assert.IsNull(FlexVaultVersionGuard.IsVersionCompatible);
+
+            bool ok = FlexVaultVersionGuard.CheckAndCacheVersion("0.8.0", out string err);
+            Assert.IsTrue(ok);
+            Assert.IsTrue(FlexVaultVersionGuard.IsVersionCompatible);
+            Assert.AreEqual("0.8.0", FlexVaultVersionGuard.LastVersionString);
+            Assert.IsNull(err);
+
+            FlexVaultVersionGuard.ResetCachedVersion();
+            Assert.IsNull(FlexVaultVersionGuard.IsVersionCompatible);
+            Assert.IsNull(FlexVaultVersionGuard.LastVersionString);
+        }
     }
 }
