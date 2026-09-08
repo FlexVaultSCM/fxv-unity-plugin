@@ -201,17 +201,50 @@ namespace FlexVault.VCS.Editor.Core
                 }
                 else
                 {
-                    result.Add(repoRelative);
-
-                    if (IsMetaFile(repoRelative))
+                    // Check if this path represents a deleted directory tracked by FlexVault.
+                    // The CLI tracks deleted files inside the directory, but rejects reverting bare directory paths.
+                    string folderPrefix = NormalizeSeparators(repoRelative).TrimEnd('/') + "/";
+                    bool isDeletedFolder = false;
+                    var status = FlexVaultStateCache.LatestStatus;
+                    if (status?.Files != null)
                     {
-                        string baseAsset = GetLogicalAssetPath(repoRelative);
-                        result.Add(baseAsset);
+                        foreach (var file in status.Files)
+                        {
+                            if (!string.IsNullOrEmpty(file?.Path) && NormalizeSeparators(file.Path).StartsWith(folderPrefix, StringComparison.OrdinalIgnoreCase))
+                            {
+                                isDeletedFolder = true;
+                                result.Add(file.Path);
+                                string companion = GetCompanionMetaPath(file.Path);
+                                if (!string.IsNullOrEmpty(companion))
+                                {
+                                    result.Add(companion);
+                                }
+                            }
+                        }
+                    }
+
+                    if (isDeletedFolder)
+                    {
+                        string folderMeta = GetCompanionMetaPath(repoRelative);
+                        if (!string.IsNullOrEmpty(folderMeta))
+                        {
+                            result.Add(folderMeta);
+                        }
                     }
                     else
                     {
-                        string meta = GetCompanionMetaPath(repoRelative);
-                        result.Add(meta);
+                        result.Add(repoRelative);
+
+                        if (IsMetaFile(repoRelative))
+                        {
+                            string baseAsset = GetLogicalAssetPath(repoRelative);
+                            result.Add(baseAsset);
+                        }
+                        else
+                        {
+                            string meta = GetCompanionMetaPath(repoRelative);
+                            result.Add(meta);
+                        }
                     }
                 }
             }
