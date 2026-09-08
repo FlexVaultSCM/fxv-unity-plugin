@@ -151,10 +151,12 @@ namespace FlexVault.VCS.Editor.Core
             "conflicted".Equals(UnpublishedState, StringComparison.OrdinalIgnoreCase);
 
         [JsonIgnore]
-        public bool NeedsSnapshot => !string.IsNullOrEmpty(WorkspaceState);
+        public bool NeedsSnapshot => !string.IsNullOrEmpty(WorkspaceState) &&
+            !WorkspaceState.Equals("unchanged", StringComparison.OrdinalIgnoreCase);
 
         [JsonIgnore]
-        public bool IsUnpublished => !string.IsNullOrEmpty(UnpublishedState);
+        public bool IsUnpublished => !string.IsNullOrEmpty(UnpublishedState) &&
+            !UnpublishedState.Equals("unchanged", StringComparison.OrdinalIgnoreCase);
 
         [JsonIgnore]
         public string EffectiveWorkspaceState
@@ -165,7 +167,7 @@ namespace FlexVault.VCS.Editor.Core
                 {
                     return "conflicted";
                 }
-                if (!string.IsNullOrEmpty(WorkspaceState))
+                if (!string.IsNullOrEmpty(WorkspaceState) && !WorkspaceState.Equals("unchanged", StringComparison.OrdinalIgnoreCase))
                 {
                     if (WorkspaceState.Equals("maybe_changed", StringComparison.OrdinalIgnoreCase))
                     {
@@ -186,7 +188,7 @@ namespace FlexVault.VCS.Editor.Core
                 {
                     return "conflicted";
                 }
-                if (!string.IsNullOrEmpty(WorkspaceState))
+                if (!string.IsNullOrEmpty(WorkspaceState) && !WorkspaceState.Equals("unchanged", StringComparison.OrdinalIgnoreCase))
                 {
                     if (WorkspaceState.Equals("maybe_changed", StringComparison.OrdinalIgnoreCase))
                     {
@@ -194,7 +196,11 @@ namespace FlexVault.VCS.Editor.Core
                     }
                     return WorkspaceState;
                 }
-                return UnpublishedState ?? "unchanged";
+                if (!string.IsNullOrEmpty(UnpublishedState) && !UnpublishedState.Equals("unchanged", StringComparison.OrdinalIgnoreCase))
+                {
+                    return UnpublishedState;
+                }
+                return "unchanged";
             }
         }
     }

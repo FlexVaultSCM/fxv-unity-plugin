@@ -287,5 +287,19 @@ namespace FlexVault.VCS.Editor.Tests
             Assert.IsTrue(itemWithString.IsConflicted);
             Assert.AreEqual("conflicted", itemWithString.EffectiveState);
         }
+
+        [Test]
+        public void FileStatusItem_UnchangedState_NotTreatedAsPendingChange()
+        {
+            var item = new FileStatusItem
+            {
+                WorkspaceState = "unchanged",
+                UnpublishedState = "unchanged"
+            };
+            Assert.IsFalse(item.NeedsSnapshot);
+            Assert.IsFalse(item.IsUnpublished);
+            Assert.AreEqual("unchanged", item.EffectiveWorkspaceState);
+            Assert.AreEqual("unchanged", item.EffectiveState);
+        }
     }
 }
