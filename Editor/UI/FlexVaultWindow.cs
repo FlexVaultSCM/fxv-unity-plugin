@@ -1018,6 +1018,10 @@ namespace FlexVault.VCS.Editor.UI
                     EditorUtility.DisplayDialog("Go To Complete", $"Workspace state moved to '{targetRevision}'.", "OK");
                 }
             }
+            catch (Exception ex)
+            {
+                EditorUtility.DisplayDialog("Go To Error", ex.Message, "OK");
+            }
             finally
             {
                 EditorUtility.ClearProgressBar();

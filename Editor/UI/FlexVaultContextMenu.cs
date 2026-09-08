@@ -199,6 +199,10 @@ namespace FlexVault.VCS.Editor.UI
                     EditorUtility.DisplayDialog("Resolve Failed", result.ErrorMessage, "OK");
                 }
             }
+            catch (Exception ex)
+            {
+                EditorUtility.DisplayDialog("Resolve Error", ex.Message, "OK");
+            }
             finally
             {
                 EditorUtility.ClearProgressBar();
