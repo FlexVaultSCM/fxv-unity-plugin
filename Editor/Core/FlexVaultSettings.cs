@@ -135,6 +135,7 @@ namespace FlexVault.VCS.Editor.Core
         {
             s_repoRootSearched = false;
             s_cachedRepoRoot = null;
+            FlexVaultMetaHelper.InvalidateProjectRoot();
         }
 
         public static bool IsInFlexVaultRepository()

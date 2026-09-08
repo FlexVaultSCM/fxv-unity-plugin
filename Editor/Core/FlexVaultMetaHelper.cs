@@ -56,6 +56,14 @@ namespace FlexVault.VCS.Editor.Core
             return normalized;
         }
 
+        private static string s_cachedProjectRoot;
+        public static string ProjectRoot => s_cachedProjectRoot ?? (s_cachedProjectRoot = NormalizeSeparators(Path.GetFullPath(Path.Combine(Application.dataPath, ".."))));
+
+        public static void InvalidateProjectRoot()
+        {
+            s_cachedProjectRoot = null;
+        }
+
         public static string ToAbsolutePath(string projectOrRepoRelativePath)
         {
             if (string.IsNullOrEmpty(projectOrRepoRelativePath))
@@ -69,8 +77,16 @@ namespace FlexVault.VCS.Editor.Core
                 return normalized;
             }
 
-            string projectRoot = NormalizeSeparators(Path.GetFullPath(Path.Combine(Application.dataPath, "..")));
+            string projectRoot = ProjectRoot;
             string fullProjectPath = NormalizeSeparators(Path.Combine(projectRoot, normalized));
+
+            if (normalized.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase)
+                || normalized.Equals("Assets", StringComparison.OrdinalIgnoreCase)
+                || normalized.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase))
+            {
+                return fullProjectPath;
+            }
+
             if (File.Exists(fullProjectPath) || Directory.Exists(fullProjectPath) || File.Exists(fullProjectPath + ".meta"))
             {
                 return fullProjectPath;
@@ -83,18 +99,23 @@ namespace FlexVault.VCS.Editor.Core
                 return fullRepoPath;
             }
 
-            if (normalized.StartsWith("Assets", StringComparison.OrdinalIgnoreCase) || normalized.StartsWith("Packages", StringComparison.OrdinalIgnoreCase))
-            {
-                return fullProjectPath;
-            }
-
             return fullRepoPath;
         }
 
         public static string ToProjectRelativePath(string repoRelativePath)
         {
+            if (string.IsNullOrEmpty(repoRelativePath)) return string.Empty;
+
+            string normalized = NormalizeSeparators(repoRelativePath);
+            if (normalized.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase)
+                || normalized.Equals("Assets", StringComparison.OrdinalIgnoreCase)
+                || normalized.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase))
+            {
+                return normalized;
+            }
+
             string absolute = ToAbsolutePath(repoRelativePath);
-            string projectRoot = NormalizeSeparators(Path.GetFullPath(Path.Combine(Application.dataPath, "..")));
+            string projectRoot = ProjectRoot;
 
             if (absolute.Equals(projectRoot, StringComparison.OrdinalIgnoreCase))
             {
