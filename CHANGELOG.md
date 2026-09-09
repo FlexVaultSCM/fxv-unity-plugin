@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.2.0...v0.3.0) (2026-09-09)
+
+
+### Features
+
+* filter history window by target file and refine UI buttons ([#6](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/6)) ([d2c0720](https://github.com/FlexVaultSCM/fxv-unity-plugin/commit/d2c0720e26c973d60e825f21eb1c79bb1867c736))
+
 ## [0.2.0](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.1.1...v0.2.0) (2026-09-09)
 
 
