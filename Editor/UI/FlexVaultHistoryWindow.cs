@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using FlexVault.VCS.Editor.Core;
 using UnityEditor;
 using UnityEngine;
@@ -69,11 +71,65 @@ namespace FlexVault.VCS.Editor.UI
 
             try
             {
-                var result = await FxvRunner.GetHistoryAsync(count: 50);
+                int fetchCount = !string.IsNullOrEmpty(m_filterPath) ? 100 : 50;
+                var result = await FxvRunner.GetHistoryAsync(count: fetchCount);
                 if (result.Success && result.Data != null)
                 {
-                    m_entries = result.Data.Entries ?? new List<CommitRefJson>();
-                    m_statusMessage = m_entries.Count == 0 ? "No history entries found." : string.Empty;
+                    var allEntries = result.Data.Entries ?? new List<CommitRefJson>();
+
+                    if (!string.IsNullOrEmpty(m_filterPath))
+                    {
+                        m_statusMessage = $"Filtering revisions for '{m_filterPath}'...";
+                        Repaint();
+
+                        string normalizedFilter = FlexVaultMetaHelper.NormalizeSeparators(m_filterPath);
+                        string companionFilter = FlexVaultMetaHelper.GetCompanionMetaPath(normalizedFilter);
+
+                        var fetchTasks = allEntries.Select(async entry =>
+                        {
+                            string rev = entry.RevisionDisplay;
+                            ChangeInfoPayload payload = null;
+                            if (m_changeInfoCache.TryGetValue(rev, out var cached))
+                            {
+                                payload = cached;
+                            }
+                            else
+                            {
+                                var changeResult = await FxvRunner.GetChangeInfoAsync(rev);
+                                if (changeResult.Success && changeResult.Data != null)
+                                {
+                                    payload = changeResult.Data;
+                                    m_changeInfoCache[rev] = payload;
+                                }
+                            }
+
+                            bool touchesTarget = false;
+                            if (payload?.Changes != null)
+                            {
+                                foreach (var change in payload.Changes)
+                                {
+                                    string changePath = FlexVaultMetaHelper.NormalizeSeparators(change.Path);
+                                    if (string.Equals(changePath, normalizedFilter, StringComparison.OrdinalIgnoreCase) ||
+                                        string.Equals(changePath, companionFilter, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        touchesTarget = true;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            return (entry, touchesTarget);
+                        }).ToList();
+
+                        var pairs = await Task.WhenAll(fetchTasks);
+                        m_entries = pairs.Where(p => p.touchesTarget).Select(p => p.entry).ToList();
+                        m_statusMessage = m_entries.Count == 0 ? $"No revisions found that modified '{m_filterPath}'." : string.Empty;
+                    }
+                    else
+                    {
+                        m_entries = allEntries;
+                        m_statusMessage = m_entries.Count == 0 ? "No history entries found." : string.Empty;
+                    }
                 }
                 else
                 {
@@ -206,7 +262,7 @@ namespace FlexVault.VCS.Editor.UI
 
                     if (!string.IsNullOrEmpty(m_filterPath))
                     {
-                        if (GUILayout.Button("Diff vs Current", EditorStyles.miniButton, GUILayout.Width(95)))
+                        if (!isCurrent && GUILayout.Button("Diff vs Current", EditorStyles.miniButton, GUILayout.Width(95)))
                         {
                             DiffWithWorkingCopy(m_filterPath, entry.RevisionDisplay);
                         }
@@ -239,7 +295,7 @@ namespace FlexVault.VCS.Editor.UI
 
                 if (m_expandedRevisions.Contains(entry.RevisionDisplay))
                 {
-                    DrawExpandedChanges(entry, index);
+                    DrawExpandedChanges(entry, index, isCurrent);
                 }
             }
             EditorGUILayout.EndVertical();
@@ -274,7 +330,7 @@ namespace FlexVault.VCS.Editor.UI
             }
         }
 
-        private void DrawExpandedChanges(CommitRefJson entry, int commitIndex)
+        private void DrawExpandedChanges(CommitRefJson entry, int commitIndex, bool isCurrent)
         {
             string rev = entry.RevisionDisplay;
             if (m_loadingChangeInfo.Contains(rev))
@@ -315,7 +371,7 @@ namespace FlexVault.VCS.Editor.UI
 
                         if (!string.Equals(file.Action, "deleted", StringComparison.OrdinalIgnoreCase))
                         {
-                            if (GUILayout.Button("Diff vs Current", EditorStyles.miniButton, GUILayout.Width(90)))
+                            if (!isCurrent && GUILayout.Button("Diff vs Current", EditorStyles.miniButton, GUILayout.Width(90)))
                             {
                                 DiffWithWorkingCopy(file.Path, rev);
                             }
