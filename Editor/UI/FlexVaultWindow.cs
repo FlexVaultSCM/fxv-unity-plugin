@@ -444,6 +444,30 @@ namespace FlexVault.VCS.Editor.UI
                 EditorGUILayout.EndScrollView();
             }
 
+            bool isBehindRemote = syncStatus != null && !syncStatus.UpToDate && syncStatus.RevisionsBehind > 0;
+
+            if (isBehindRemote)
+            {
+                GUILayout.Space(4f);
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                {
+                    EditorGUILayout.BeginHorizontal();
+                    {
+                        string behindWarning = $"Workspace is {syncStatus.RevisionsBehind} revision(s) behind remote. Sync required before publishing.";
+                        EditorGUILayout.LabelField(behindWarning, EditorStyles.wordWrappedMiniLabel);
+
+                        GUI.enabled = !FlexVaultStateCache.IsRefreshing && !m_isOperating;
+                        if (GUILayout.Button("Sync Now", EditorStyles.miniButton, GUILayout.Width(75)))
+                        {
+                            SyncWorkspace();
+                        }
+                        GUI.enabled = true;
+                    }
+                    EditorGUILayout.EndHorizontal();
+                }
+                EditorGUILayout.EndVertical();
+            }
+
             GUILayout.Space(5f);
             EditorGUILayout.LabelField("Commit Description:", EditorStyles.boldLabel);
             m_commitDescription = EditorGUILayout.TextArea(m_commitDescription, GUILayout.Height(45));
@@ -458,7 +482,8 @@ namespace FlexVault.VCS.Editor.UI
                 }
 
                 GUI.enabled = !m_isOperating && (workspaceChanges.Count > 0 || unpublishedChanges.Count > 0) && !string.IsNullOrWhiteSpace(m_commitDescription);
-                if (GUILayout.Button("Publish to Remote", GUILayout.Height(32)))
+                string publishButtonLabel = isBehindRemote ? "Sync & Publish" : "Publish to Remote";
+                if (GUILayout.Button(publishButtonLabel, GUILayout.Height(32)))
                 {
                     PublishChanges();
                 }
@@ -511,7 +536,7 @@ namespace FlexVault.VCS.Editor.UI
             if (!FlexVaultSafetyGuards.EnsureSafeToMutateWorkspace("Snapshot", promptSaveDirtyScenes: true)) return;
 
             string desc = string.IsNullOrWhiteSpace(m_commitDescription)
-                ? $"Manual draft snapshot at {DateTime.Now:yyyy-MM-dd HH:mm:ss}"
+                ? $"Snapshot taken at {DateTime.Now:yyyy-MM-dd HH:mm:ss}"
                 : m_commitDescription.Trim();
 
             m_isOperating = true;
@@ -569,6 +594,24 @@ namespace FlexVault.VCS.Editor.UI
                 }
             }
 
+            var syncStatus = status?.SyncStatus;
+            bool isBehind = syncStatus != null && !syncStatus.UpToDate && syncStatus.RevisionsBehind > 0;
+            if (isBehind)
+            {
+                ulong behindCount = syncStatus.RevisionsBehind;
+                string behindText = behindCount == 1 ? "1 revision" : $"{behindCount} revisions";
+                bool proceedSyncPublish = EditorUtility.DisplayDialog(
+                    "Sync and Publish",
+                    $"Your workspace is {behindText} behind remote.\n\nFlexVault will snapshot your local changes, sync with remote to bring them up to date, and then publish.\n\nDo you want to continue?",
+                    "Sync and Publish",
+                    "Cancel");
+
+                if (!proceedSyncPublish)
+                {
+                    return;
+                }
+            }
+
             m_isOperating = true;
             EditorApplication.LockReloadAssemblies();
 
@@ -582,14 +625,62 @@ namespace FlexVault.VCS.Editor.UI
                     return;
                 }
 
+                if (isBehind)
+                {
+                    EditorUtility.DisplayProgressBar("FlexVault", "Syncing with remote...", 0.5f);
+                    var syncResult = await FxvRunner.SyncAsync();
+                    if (!syncResult.Success)
+                    {
+                        EditorUtility.DisplayDialog("Sync Failed", $"Snapshot created, but sync failed:\n\n{syncResult.ErrorMessage}\n\nYour changes remain saved as an unpublished draft.", "OK");
+                        return;
+                    }
+
+                    if (syncResult.Data?.ConflictedFiles != null && syncResult.Data.ConflictedFiles.Count > 0)
+                    {
+                        string conflictList = string.Join("\n", syncResult.Data.ConflictedFiles);
+                        EditorUtility.DisplayDialog(
+                            "Sync Conflicts Detected",
+                            $"Sync completed with {syncResult.Data.ConflictedFiles.Count} conflict(s):\n\n{conflictList}\n\nPlease resolve conflicts before publishing.",
+                            "OK");
+                        return;
+                    }
+                }
+
                 EditorUtility.DisplayProgressBar("FlexVault", "Phase 2/2: Publishing draft...", 0.7f);
                 var pubResult = await FxvRunner.PublishAsync(m_commitDescription);
                 if (!pubResult.Success)
                 {
-                    EditorUtility.DisplayDialog(
-                        "Publish Failed",
-                        $"Snapshot succeeded locally, but publish failed:\n\n{pubResult.ErrorMessage}\n\nYour changes remain saved as an unpublished draft.",
-                        "OK");
+                    string err = pubResult.ErrorMessage ?? string.Empty;
+                    bool isDivergedError = err.IndexOf("diverged", StringComparison.OrdinalIgnoreCase) >= 0
+                        || err.IndexOf("fxv sync", StringComparison.OrdinalIgnoreCase) >= 0;
+
+                    if (isDivergedError)
+                    {
+                        bool syncNow = EditorUtility.DisplayDialog(
+                            "Sync Required Before Publishing",
+                            "Your changes are safely snapshotted, but the remote branch has newer commits.\n\nWould you like to sync now to bring your draft up to date?",
+                            "Sync Now",
+                            "Later");
+
+                        if (syncNow)
+                        {
+                            // Trigger sync directly; finally block unlocks reloading and cleans progress bar
+                            EditorUtility.ClearProgressBar();
+                            AssetDatabase.Refresh();
+                            EditorApplication.UnlockReloadAssemblies();
+                            m_isOperating = false;
+                            FlexVaultStateCache.RefreshAsync();
+                            SyncWorkspace();
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        EditorUtility.DisplayDialog(
+                            "Publish Failed",
+                            $"Snapshot succeeded locally, but publish failed:\n\n{pubResult.ErrorMessage}\n\nYour changes remain saved as an unpublished draft.",
+                            "OK");
+                    }
                     return;
                 }
 

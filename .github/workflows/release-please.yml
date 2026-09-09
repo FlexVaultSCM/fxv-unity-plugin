@@ -65,7 +65,9 @@ jobs:
           asset_latest="com.flexvault.vcs.tgz"
           asset_zip="com.flexvault.vcs-${clean_version}.zip"
 
-          cp "$packed_tgz" "$asset_versioned"
+          if [ "$packed_tgz" != "$asset_versioned" ]; then
+            cp "$packed_tgz" "$asset_versioned"
+          fi
           cp "$packed_tgz" "$asset_latest"
 
           git archive --format=zip --prefix="com.flexvault.vcs/" HEAD -o "$asset_zip"
