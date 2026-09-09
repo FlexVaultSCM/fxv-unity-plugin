@@ -1,4 +1,7 @@
 using System;
+using System.IO;
+using System.Text.RegularExpressions;
+using UnityEngine;
 
 namespace FlexVault.VCS.Editor.Core
 {
@@ -149,6 +152,128 @@ namespace FlexVault.VCS.Editor.Core
             }
 
             return true;
+        }
+
+        public const string DefaultPluginVersion = "0.1.0";
+
+        public static string PluginVersion
+        {
+            get
+            {
+                if (!string.IsNullOrEmpty(s_pluginVersion))
+                {
+                    return s_pluginVersion;
+                }
+
+                s_pluginVersion = ResolvePluginVersion();
+                return s_pluginVersion;
+            }
+            internal set => s_pluginVersion = value;
+        }
+
+        private static string s_pluginVersion;
+
+        public static void ResetPluginVersion()
+        {
+            s_pluginVersion = null;
+        }
+
+        public static string ResolvePluginVersion()
+        {
+            try
+            {
+                var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(FlexVaultVersionGuard).Assembly);
+                if (packageInfo != null && !string.IsNullOrEmpty(packageInfo.version))
+                {
+                    return packageInfo.version;
+                }
+            }
+            catch
+            {
+                // In non-editor or standalone test runner environments, FindForAssembly may fail
+            }
+
+            try
+            {
+                string asmPath = typeof(FlexVaultVersionGuard).Assembly.Location;
+                if (!string.IsNullOrEmpty(asmPath))
+                {
+                    string dir = Path.GetDirectoryName(asmPath);
+                    while (!string.IsNullOrEmpty(dir))
+                    {
+                        string pkgJson = Path.Combine(dir, "package.json");
+                        if (File.Exists(pkgJson))
+                        {
+                            string v = TryReadVersionFromPackageJson(pkgJson);
+                            if (!string.IsNullOrEmpty(v))
+                            {
+                                return v;
+                            }
+                        }
+                        DirectoryInfo parent = Directory.GetParent(dir);
+                        if (parent == null) break;
+                        dir = parent.FullName;
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore filesystem search errors
+            }
+
+            try
+            {
+                if (!string.IsNullOrEmpty(UnityEngine.Application.dataPath))
+                {
+                    string projectRoot = Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath, ".."));
+                    string[] candidates = {
+                        Path.Combine(projectRoot, "Packages", "com.flexvault.vcs", "package.json"),
+                        Path.Combine(projectRoot, "package.json")
+                    };
+                    foreach (var candidate in candidates)
+                    {
+                        if (File.Exists(candidate))
+                        {
+                            string v = TryReadVersionFromPackageJson(candidate);
+                            if (!string.IsNullOrEmpty(v))
+                            {
+                                return v;
+                            }
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore
+            }
+
+            return DefaultPluginVersion;
+        }
+
+        public static string TryReadVersionFromPackageJson(string path)
+        {
+            try
+            {
+                if (!File.Exists(path)) return null;
+                string text = File.ReadAllText(path);
+                return ParseVersionFromPackageJsonContent(text);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public static string ParseVersionFromPackageJsonContent(string jsonContent)
+        {
+            if (string.IsNullOrWhiteSpace(jsonContent))
+            {
+                return null;
+            }
+
+            var match = Regex.Match(jsonContent, @"""version""\s*:\s*""([^""]+)""");
+            return match.Success ? match.Groups[1].Value.Trim() : null;
         }
     }
 }
