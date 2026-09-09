@@ -205,6 +205,15 @@ namespace FlexVault.VCS.Editor.Core
             string effectivePath = FlexVaultSettings.GetEffectiveBinaryPath();
             EditorGUILayout.LabelField("Resolved CLI Executable:", effectivePath ?? "Not found", EditorStyles.wordWrappedLabel);
 
+            if (FlexVaultVersionGuard.IsVersionCompatible == false)
+            {
+                EditorGUILayout.HelpBox(FlexVaultVersionGuard.LastErrorMessage ?? "Incompatible FlexVault CLI version.", MessageType.Error);
+            }
+            else if (FlexVaultVersionGuard.IsVersionCompatible == true && !string.IsNullOrEmpty(FlexVaultVersionGuard.LastVersionString))
+            {
+                EditorGUILayout.HelpBox($"FlexVault CLI v{FlexVaultVersionGuard.LastVersionString} is compatible.", MessageType.Info);
+            }
+
             string repoRoot = FlexVaultSettings.GetRepositoryRoot();
             bool isRepo = FlexVaultSettings.IsInFlexVaultRepository();
             EditorGUILayout.LabelField("Repository Root:", repoRoot ?? "Unknown", EditorStyles.wordWrappedLabel);
@@ -343,10 +352,13 @@ namespace FlexVault.VCS.Editor.Core
             SettingsService.NotifySettingsProviderChanged();
             repaintCallback?.Invoke();
 
+            FlexVaultVersionGuard.ResetCachedVersion();
+            await FxvRunner.EnsureVersionCheckedAsync();
+
             var result = await FxvRunner.RunCommandAsync<StatusPayload>(new[] { "status", "--skip-remote-update", "--skip-scan" });
             if (result.Success)
             {
-                state.TestStatus = $"Successfully connected to fxv!\nBranch: {result.Data?.CurrentBranch ?? "unknown"}\nUser: {result.Data?.CurrentUser ?? "Logged out"}";
+                state.TestStatus = $"Successfully connected to fxv!\nVersion: {FlexVaultVersionGuard.LastVersionString ?? "unknown"}\nBranch: {result.Data?.CurrentBranch ?? "unknown"}\nUser: {result.Data?.CurrentUser ?? "Logged out"}";
                 state.TestMessageType = MessageType.Info;
             }
             else

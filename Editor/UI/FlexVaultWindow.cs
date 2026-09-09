@@ -49,6 +49,10 @@ namespace FlexVault.VCS.Editor.UI
             if (FlexVaultSettings.IsInFlexVaultRepository())
             {
                 FlexVaultStateCache.RefreshAsync();
+                if (m_currentTab == Tab.History)
+                {
+                    LoadHistoryEntries();
+                }
             }
         }
 
@@ -79,6 +83,11 @@ namespace FlexVault.VCS.Editor.UI
             }
 
             DrawHeaderToolbar();
+
+            if (FlexVaultVersionGuard.IsVersionCompatible == false)
+            {
+                DrawVersionMismatchBanner();
+            }
 
             GUILayout.Space(2f);
             DrawTabBar();
@@ -143,10 +152,49 @@ namespace FlexVault.VCS.Editor.UI
             }
         }
 
+        private void DrawVersionMismatchBanner()
+        {
+            GUILayout.Space(4f);
+            string message = FlexVaultVersionGuard.LastErrorMessage ?? "Incompatible FlexVault CLI version detected.";
+            EditorGUILayout.HelpBox(message, MessageType.Error);
+
+            EditorGUILayout.BeginHorizontal();
+            {
+                if (GUILayout.Button("Open FlexVault Settings...", EditorStyles.miniButton, GUILayout.Width(180)))
+                {
+                    SettingsService.OpenProjectSettings("Project/Version Control/FlexVault");
+                }
+
+                if (GUILayout.Button("Retry Version Check", EditorStyles.miniButton, GUILayout.Width(150)))
+                {
+                    FlexVaultVersionGuard.ResetCachedVersion();
+                    FlexVaultStateCache.RefreshAsync(skipScan: false, force: true);
+                }
+            }
+            EditorGUILayout.EndHorizontal();
+            GUILayout.Space(4f);
+        }
+
         private void DrawHeaderToolbar()
         {
             var status = FlexVaultStateCache.LatestStatus;
-            string branch = status?.CurrentBranch ?? "detecting...";
+            string branch;
+            if (status != null && !string.IsNullOrEmpty(status.CurrentBranch))
+            {
+                branch = status.CurrentBranch;
+            }
+            else if (FlexVaultVersionGuard.IsVersionCompatible == false)
+            {
+                branch = "incompatible CLI";
+            }
+            else if (FlexVaultStateCache.IsRefreshing)
+            {
+                branch = "detecting...";
+            }
+            else
+            {
+                branch = "disconnected";
+            }
             string user = !string.IsNullOrEmpty(status?.CurrentUser) ? status.CurrentUser : "Logged out";
             var syncStatus = status?.SyncStatus;
 
@@ -547,7 +595,8 @@ namespace FlexVault.VCS.Editor.UI
 
                 m_commitDescription = string.Empty;
                 m_selectedPaths.Clear();
-                EditorUtility.DisplayDialog("Publish Succeeded", "Workspace changes were published successfully.", "OK");
+                ShowNotification(new GUIContent("Workspace changes were published successfully."));
+                Debug.Log("[FlexVault] Workspace changes were published successfully.");
             }
             catch (Exception ex)
             {
@@ -717,6 +766,10 @@ namespace FlexVault.VCS.Editor.UI
         private async void LoadHistoryEntries()
         {
             if (!FlexVaultSettings.IsInFlexVaultRepository()) return;
+            if (FlexVaultStateCache.LatestStatus == null)
+            {
+                FlexVaultStateCache.RefreshAsync();
+            }
             m_isLoadingHistory = true;
             Repaint();
 
@@ -773,18 +826,17 @@ namespace FlexVault.VCS.Editor.UI
                 for (int i = 0; i < m_historyEntries.Count; i++)
                 {
                     var entry = m_historyEntries[i];
-                    bool isCurrent = FlexVaultStateCache.IsCurrentWorkspaceRevision(entry);
+                    bool isCurrent = FlexVaultStateCache.IsCurrentWorkspaceRevision(entry, m_historyEntries);
 
                     var prevBg = GUI.backgroundColor;
                     if (isCurrent)
                     {
                         GUI.backgroundColor = EditorGUIUtility.isProSkin
-                            ? new Color(0.18f, 0.42f, 0.28f, 1f)
+                            ? new Color(0.20f, 0.45f, 0.28f, 1f)
                             : new Color(0.72f, 0.92f, 0.78f, 1f);
                     }
                     var bg = (i % 2 == 0) ? EditorStyles.helpBox : EditorStyles.textArea;
                     EditorGUILayout.BeginVertical(bg);
-                    GUI.backgroundColor = prevBg;
 
                     {
                         EditorGUILayout.BeginHorizontal();
@@ -807,8 +859,8 @@ namespace FlexVault.VCS.Editor.UI
                             if (isCurrent)
                             {
                                 Color prevCol2 = GUI.contentColor;
-                                GUI.contentColor = new Color(0.2f, 0.9f, 0.4f);
-                                GUILayout.Label("● Current", EditorStyles.boldLabel, GUILayout.Width(68));
+                                GUI.contentColor = EditorGUIUtility.isProSkin ? new Color(0.3f, 1f, 0.5f) : new Color(0.1f, 0.6f, 0.2f);
+                                GUILayout.Label("● Current", EditorStyles.boldLabel, GUILayout.Width(72));
                                 GUI.contentColor = prevCol2;
                             }
 
@@ -848,6 +900,7 @@ namespace FlexVault.VCS.Editor.UI
                         }
                     }
                     EditorGUILayout.EndVertical();
+                    GUI.backgroundColor = prevBg;
                     GUILayout.Space(2f);
                 }
             }

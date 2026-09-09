@@ -31,7 +31,11 @@ namespace FlexVault.VCS.Editor.Core
                     await FxvRunner.EnsureVersionCheckedAsync();
 
                     string cliVersion = FlexVaultVersionGuard.LastVersionString;
-                    if (!string.IsNullOrEmpty(cliVersion))
+                    if (FlexVaultVersionGuard.IsVersionCompatible == false)
+                    {
+                        Debug.LogError($"[FlexVault] Plugin loaded at version {FlexVaultVersionGuard.PluginVersion}, but CLI version check failed: {FlexVaultVersionGuard.LastErrorMessage}");
+                    }
+                    else if (!string.IsNullOrEmpty(cliVersion))
                     {
                         Debug.Log($"[FlexVault] Plugin loaded at version {FlexVaultVersionGuard.PluginVersion} (CLI version {cliVersion})");
                     }
@@ -176,7 +180,7 @@ namespace FlexVault.VCS.Editor.Core
             return false;
         }
 
-        public static bool IsCurrentWorkspaceRevision(CommitRefJson entry)
+        public static bool IsCurrentWorkspaceRevision(CommitRefJson entry, IEnumerable<CommitRefJson> allEntries = null)
         {
             if (entry == null) return false;
 
@@ -188,49 +192,125 @@ namespace FlexVault.VCS.Editor.Core
 
             if (status == null) return false;
 
-            // 1. Match by commit hash if available
-            string currentHash = status.HeadCommit?.LocalSnapshot?.CommitHash
-                ?? status.HeadCommit?.PublishedHead?.CommitHash;
-            if (!string.IsNullOrEmpty(currentHash) && !string.IsNullOrEmpty(entry.CommitHash))
+            // Ensure branch matches if both are known
+            if (!string.IsNullOrEmpty(status.CurrentBranch) && !string.IsNullOrEmpty(entry.Commit?.Branch))
             {
-                if (string.Equals(entry.CommitHash, currentHash, StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(entry.Commit.Branch, status.CurrentBranch, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            // 1. Exact draft snapshot match:
+            // If the workspace is currently on a draft (LocalSnapshot), check if this entry is that exact draft.
+            var localSnapshot = status.HeadCommit?.LocalSnapshot;
+            if (localSnapshot != null && IsDraftMatch(entry, localSnapshot))
+            {
+                return true;
+            }
+
+            // 2. Published baseline match:
+            // If this entry is a published commit, check if it matches the published revision the workspace is synced to.
+            bool isPublished = string.Equals(entry.Commit?.Type, "published", StringComparison.OrdinalIgnoreCase)
+                || (entry.Commit != null && !entry.Commit.DraftRevision.HasValue);
+
+            if (isPublished)
+            {
+                // If a list of visible history entries is provided, and one of the entries is an active draft that
+                // matches LocalSnapshot, that draft is the active version and the published parent should not be
+                // highlighted as the current version.
+                if (allEntries != null && localSnapshot != null)
+                {
+                    bool hasActiveDraftInList = false;
+                    foreach (var other in allEntries)
+                    {
+                        if (other == null || ReferenceEquals(other, entry)) continue;
+                        if (IsDraftMatch(other, localSnapshot))
+                        {
+                            hasActiveDraftInList = true;
+                            break;
+                        }
+                    }
+
+                    if (hasActiveDraftInList)
+                    {
+                        return false;
+                    }
+                }
+
+                // Determine the workspace's current published revision:
+                // Primary source is SyncStatus.SyncedRevision (where the workspace is synced to).
+                // Fallbacks: LocalSnapshot parent revision, or PublishedHead revision when up to date.
+                ulong? currentPublishedRev = status.SyncStatus?.SyncedRevision
+                    ?? localSnapshot?.Commit?.Revision
+                    ?? (status.SyncStatus == null || status.SyncStatus.UpToDate ? status.HeadCommit?.PublishedHead?.Commit?.Revision : null);
+
+                if (currentPublishedRev.HasValue)
+                {
+                    if (entry.Commit?.Revision.HasValue == true && entry.Commit.Revision.Value == currentPublishedRev.Value)
+                    {
+                        return true;
+                    }
+
+                    string expectedRevDisplay = !string.IsNullOrEmpty(status.CurrentBranch)
+                        ? $"{status.CurrentBranch}.{currentPublishedRev.Value}"
+                        : currentPublishedRev.Value.ToString();
+
+                    if (!string.IsNullOrEmpty(entry.RevisionDisplay) &&
+                        string.Equals(entry.RevisionDisplay, expectedRevDisplay, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+
+                // Match against PublishedHead by commit hash if available and up-to-date
+                if (!string.IsNullOrEmpty(entry.CommitHash) && !string.IsNullOrEmpty(status.HeadCommit?.PublishedHead?.CommitHash))
+                {
+                    if (string.Equals(entry.CommitHash, status.HeadCommit.PublishedHead.CommitHash, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (status.SyncStatus == null || status.SyncStatus.UpToDate ||
+                            (status.SyncStatus.SyncedRevision.HasValue && status.HeadCommit.PublishedHead.Commit?.Revision == status.SyncStatus.SyncedRevision))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsDraftMatch(CommitRefJson entry, CommitRefJson localSnapshot)
+        {
+            if (entry == null || localSnapshot == null) return false;
+
+            // Commit hash match if both have it
+            if (!string.IsNullOrEmpty(entry.CommitHash) && !string.IsNullOrEmpty(localSnapshot.CommitHash))
+            {
+                if (string.Equals(entry.CommitHash, localSnapshot.CommitHash, StringComparison.OrdinalIgnoreCase))
                 {
                     return true;
                 }
             }
 
-            // 2. Match by revision spec display (e.g. main.-.25, main.12.3, main.12)
-            string currentRev = status.HeadCommit?.LocalSnapshot?.RevisionDisplay
-                ?? status.HeadCommit?.PublishedHead?.RevisionDisplay
-                ?? (status.SyncStatus?.SyncedRevision != null && status.CurrentBranch != null
-                    ? $"{status.CurrentBranch}.{status.SyncStatus.SyncedRevision.Value}"
-                    : null);
-
-            if (!string.IsNullOrEmpty(currentRev) && !string.IsNullOrEmpty(entry.RevisionDisplay))
+            // RevisionDisplay spec match (e.g. main.4.2 or main.-.1)
+            if (!string.IsNullOrEmpty(entry.RevisionDisplay) && !string.IsNullOrEmpty(localSnapshot.RevisionDisplay))
             {
-                if (string.Equals(entry.RevisionDisplay, currentRev, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(entry.RevisionDisplay, localSnapshot.RevisionDisplay, StringComparison.OrdinalIgnoreCase))
                 {
                     return true;
                 }
             }
 
-            // 3. Fallback to commit metadata comparison
-            var currentCommit = status.HeadCommit?.LocalSnapshot?.Commit
-                ?? status.HeadCommit?.PublishedHead?.Commit;
-
-            if (currentCommit != null && entry.Commit != null)
+            // Commit metadata match
+            if (entry.Commit != null && localSnapshot.Commit != null &&
+                string.Equals(entry.Commit.Type, "draft", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(localSnapshot.Commit.Type, "draft", StringComparison.OrdinalIgnoreCase))
             {
-                if (string.Equals(currentCommit.Branch, entry.Commit.Branch, StringComparison.OrdinalIgnoreCase)
-                    && string.Equals(currentCommit.Type, entry.Commit.Type, StringComparison.OrdinalIgnoreCase))
+                if (entry.Commit.DraftRevision.HasValue && localSnapshot.Commit.DraftRevision.HasValue &&
+                    entry.Commit.DraftRevision.Value == localSnapshot.Commit.DraftRevision.Value)
                 {
-                    if (currentCommit.DraftRevision.HasValue && entry.Commit.DraftRevision.HasValue)
-                    {
-                        return currentCommit.DraftRevision.Value == entry.Commit.DraftRevision.Value;
-                    }
-                    if (currentCommit.Revision.HasValue && entry.Commit.Revision.HasValue)
-                    {
-                        return currentCommit.Revision.Value == entry.Commit.Revision.Value;
-                    }
+                    return entry.Commit.Revision == localSnapshot.Commit.Revision;
                 }
             }
 
@@ -311,6 +391,10 @@ namespace FlexVault.VCS.Editor.Core
                     };
                     return;
                 }
+                else if (!result.Success && !string.IsNullOrEmpty(result.ErrorMessage))
+                {
+                    UnityEngine.Debug.LogWarning($"[FlexVault] State cache refresh failed: {result.ErrorMessage}");
+                }
             }
             catch (Exception ex)
             {
@@ -342,6 +426,22 @@ namespace FlexVault.VCS.Editor.Core
 
         private static void UpdateCache(StatusPayload status)
         {
+            if (status == null)
+            {
+                lock (s_lock)
+                {
+                    s_latestStatus = null;
+                    s_pathToStatus.Clear();
+                    s_guidToState.Clear();
+                    s_changedFiles.Clear();
+                    s_workspaceChanges.Clear();
+                    s_unpublishedChanges.Clear();
+                }
+                OnStateChanged?.Invoke();
+                try { EditorApplication.RepaintProjectWindow(); } catch { }
+                return;
+            }
+
             var newGuidMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var newPathMap = new Dictionary<string, FileStatusItem>(StringComparer.OrdinalIgnoreCase);
 
@@ -367,7 +467,8 @@ namespace FlexVault.VCS.Editor.Core
                         if (isTrackedPrefix)
                         {
                             string logicalAsset = FlexVaultMetaHelper.GetLogicalAssetPath(projectRelative);
-                            string guid = AssetDatabase.AssetPathToGUID(logicalAsset);
+                            string guid = null;
+                            try { guid = AssetDatabase.AssetPathToGUID(logicalAsset); } catch { }
                             if (!string.IsNullOrEmpty(guid))
                             {
                                 string newState = file.EffectiveWorkspaceState;
@@ -432,7 +533,7 @@ namespace FlexVault.VCS.Editor.Core
             }
 
             OnStateChanged?.Invoke();
-            EditorApplication.RepaintProjectWindow();
+            try { EditorApplication.RepaintProjectWindow(); } catch { }
         }
     }
 }

@@ -199,5 +199,230 @@ namespace FlexVault.VCS.Editor.Tests
             Assert.IsTrue(FlexVaultStateCache.HasConflictInFolder("Assets/FolderB"));
             Assert.IsFalse(FlexVaultStateCache.HasConflictInFolder("Assets/FolderA"));
         }
+
+        [Test]
+        public void StateCache_IsCurrentWorkspaceRevision_NullInputs_ReturnsFalse()
+        {
+            Assert.IsFalse(FlexVaultStateCache.IsCurrentWorkspaceRevision(null));
+
+            var entry = new CommitRefJson
+            {
+                Commit = new CommitInfoDetailJson { Branch = "main", Revision = 1, Type = "published" }
+            };
+
+            // Status is null
+            InvokeUpdateCache(null);
+            Assert.IsFalse(FlexVaultStateCache.IsCurrentWorkspaceRevision(entry));
+        }
+
+        [Test]
+        public void StateCache_IsCurrentWorkspaceRevision_PublishedBaselineMatch()
+        {
+            var payload = new StatusPayload
+            {
+                CurrentBranch = "main",
+                HeadCommit = new HeadCommitJson
+                {
+                    State = "parented_draft",
+                    PublishedHead = new CommitRefJson
+                    {
+                        Commit = new CommitInfoDetailJson { Branch = "main", Revision = 5, Type = "published" }
+                    },
+                    LocalSnapshot = new CommitRefJson
+                    {
+                        Commit = new CommitInfoDetailJson { Branch = "main", Revision = 5, Type = "draft", DraftRevision = 1 }
+                    }
+                },
+                SyncStatus = new SyncStatusJson
+                {
+                    UpToDate = true,
+                    RevisionsBehind = 0,
+                    PublishedHeadRevision = 5,
+                    SyncedRevision = 5
+                }
+            };
+            InvokeUpdateCache(payload);
+
+            var published5 = new CommitRefJson
+            {
+                Commit = new CommitInfoDetailJson { Branch = "main", Revision = 5, Type = "published" }
+            };
+            var published4 = new CommitRefJson
+            {
+                Commit = new CommitInfoDetailJson { Branch = "main", Revision = 4, Type = "published" }
+            };
+
+            var history = new List<CommitRefJson> { published5, published4 };
+
+            Assert.IsTrue(FlexVaultStateCache.IsCurrentWorkspaceRevision(published5, history));
+            Assert.IsFalse(FlexVaultStateCache.IsCurrentWorkspaceRevision(published4, history));
+        }
+
+        [Test]
+        public void StateCache_IsCurrentWorkspaceRevision_SyncedRevisionBehindRemoteHead()
+        {
+            // Workspace is synced to Rev 3, while remote head is at Rev 7
+            var payload = new StatusPayload
+            {
+                CurrentBranch = "main",
+                HeadCommit = new HeadCommitJson
+                {
+                    State = "parented_draft",
+                    PublishedHead = new CommitRefJson
+                    {
+                        Commit = new CommitInfoDetailJson { Branch = "main", Revision = 7, Type = "published" }
+                    },
+                    LocalSnapshot = new CommitRefJson
+                    {
+                        Commit = new CommitInfoDetailJson { Branch = "main", Revision = 3, Type = "draft", DraftRevision = 1 }
+                    }
+                },
+                SyncStatus = new SyncStatusJson
+                {
+                    UpToDate = false,
+                    RevisionsBehind = 4,
+                    PublishedHeadRevision = 7,
+                    SyncedRevision = 3
+                }
+            };
+            InvokeUpdateCache(payload);
+
+            var rev7 = new CommitRefJson { Commit = new CommitInfoDetailJson { Branch = "main", Revision = 7, Type = "published" } };
+            var rev6 = new CommitRefJson { Commit = new CommitInfoDetailJson { Branch = "main", Revision = 6, Type = "published" } };
+            var rev3 = new CommitRefJson { Commit = new CommitInfoDetailJson { Branch = "main", Revision = 3, Type = "published" } };
+            var rev2 = new CommitRefJson { Commit = new CommitInfoDetailJson { Branch = "main", Revision = 2, Type = "published" } };
+
+            var history = new List<CommitRefJson> { rev7, rev6, rev3, rev2 };
+
+            Assert.IsFalse(FlexVaultStateCache.IsCurrentWorkspaceRevision(rev7, history), "Remote published head should not be marked current if workspace is behind");
+            Assert.IsFalse(FlexVaultStateCache.IsCurrentWorkspaceRevision(rev6, history));
+            Assert.IsTrue(FlexVaultStateCache.IsCurrentWorkspaceRevision(rev3, history), "Synced revision 3 should be marked current");
+            Assert.IsFalse(FlexVaultStateCache.IsCurrentWorkspaceRevision(rev2, history));
+        }
+
+        [Test]
+        public void StateCache_IsCurrentWorkspaceRevision_ActiveDraftMatchesAndSuppressesPublishedParent()
+        {
+            var payload = new StatusPayload
+            {
+                CurrentBranch = "main",
+                HeadCommit = new HeadCommitJson
+                {
+                    State = "parented_draft",
+                    LocalSnapshot = new CommitRefJson
+                    {
+                        Commit = new CommitInfoDetailJson { Branch = "main", Revision = 5, Type = "draft", DraftRevision = 2 }
+                    }
+                },
+                SyncStatus = new SyncStatusJson
+                {
+                    UpToDate = true,
+                    SyncedRevision = 5
+                }
+            };
+            InvokeUpdateCache(payload);
+
+            var draft52 = new CommitRefJson
+            {
+                Commit = new CommitInfoDetailJson { Branch = "main", Revision = 5, Type = "draft", DraftRevision = 2 }
+            };
+            var published5 = new CommitRefJson
+            {
+                Commit = new CommitInfoDetailJson { Branch = "main", Revision = 5, Type = "published" }
+            };
+
+            var history = new List<CommitRefJson> { draft52, published5 };
+
+            Assert.IsTrue(FlexVaultStateCache.IsCurrentWorkspaceRevision(draft52, history), "Exact draft snapshot match should be current");
+            Assert.IsFalse(FlexVaultStateCache.IsCurrentWorkspaceRevision(published5, history), "Published parent should not be current when active draft is in history");
+        }
+
+        [Test]
+        public void StateCache_IsCurrentWorkspaceRevision_DraftNotInHistory_HighlightsPublishedBase()
+        {
+            var payload = new StatusPayload
+            {
+                CurrentBranch = "main",
+                HeadCommit = new HeadCommitJson
+                {
+                    State = "parented_draft",
+                    LocalSnapshot = new CommitRefJson
+                    {
+                        Commit = new CommitInfoDetailJson { Branch = "main", Revision = 5, Type = "draft", DraftRevision = 2 }
+                    }
+                },
+                SyncStatus = new SyncStatusJson
+                {
+                    UpToDate = true,
+                    SyncedRevision = 5
+                }
+            };
+            InvokeUpdateCache(payload);
+
+            // History only contains published commits (e.g. user hasn't snapshotted or history is published only)
+            var published5 = new CommitRefJson
+            {
+                Commit = new CommitInfoDetailJson { Branch = "main", Revision = 5, Type = "published" }
+            };
+            var published4 = new CommitRefJson
+            {
+                Commit = new CommitInfoDetailJson { Branch = "main", Revision = 4, Type = "published" }
+            };
+
+            var history = new List<CommitRefJson> { published5, published4 };
+
+            Assert.IsTrue(FlexVaultStateCache.IsCurrentWorkspaceRevision(published5, history), "Published baseline should be current when active draft is not in history");
+            Assert.IsFalse(FlexVaultStateCache.IsCurrentWorkspaceRevision(published4, history));
+        }
+
+        [Test]
+        public void StateCache_IsCurrentWorkspaceRevision_UnparentedDraft_Matches()
+        {
+            var payload = new StatusPayload
+            {
+                CurrentBranch = "feature",
+                HeadCommit = new HeadCommitJson
+                {
+                    State = "unparented_draft",
+                    LocalSnapshot = new CommitRefJson
+                    {
+                        Commit = new CommitInfoDetailJson { Branch = "feature", Revision = null, Type = "draft", DraftRevision = 1 }
+                    }
+                }
+            };
+            InvokeUpdateCache(payload);
+
+            var unparentedDraft = new CommitRefJson
+            {
+                Commit = new CommitInfoDetailJson { Branch = "feature", Revision = null, Type = "draft", DraftRevision = 1 }
+            };
+            var otherDraft = new CommitRefJson
+            {
+                Commit = new CommitInfoDetailJson { Branch = "feature", Revision = null, Type = "draft", DraftRevision = 2 }
+            };
+
+            var history = new List<CommitRefJson> { unparentedDraft, otherDraft };
+
+            Assert.IsTrue(FlexVaultStateCache.IsCurrentWorkspaceRevision(unparentedDraft, history));
+            Assert.IsFalse(FlexVaultStateCache.IsCurrentWorkspaceRevision(otherDraft, history));
+        }
+
+        [Test]
+        public void StateCache_IsCurrentWorkspaceRevision_DifferentBranch_ReturnsFalse()
+        {
+            var payload = new StatusPayload
+            {
+                CurrentBranch = "main",
+                SyncStatus = new SyncStatusJson { SyncedRevision = 5 }
+            };
+            InvokeUpdateCache(payload);
+
+            var otherBranchCommit = new CommitRefJson
+            {
+                Commit = new CommitInfoDetailJson { Branch = "other-branch", Revision = 5, Type = "published" }
+            };
+
+            Assert.IsFalse(FlexVaultStateCache.IsCurrentWorkspaceRevision(otherBranchCommit));
+        }
     }
 }

@@ -101,9 +101,9 @@ namespace FlexVault.VCS.Editor.Core
     {
         // Pinned compatible range: [MinVersion, MaxVersion)
         // MinVersion is 0.5.0 because 'fxv cat' required for diff/history was introduced in v0.5.0.
-        // MaxVersion is 0.9.0 to support releases through v0.8.x.
+        // MaxVersion is 0.10.0 to support releases through v0.9.x.
         public static readonly FxvCliVersion MinVersion = new FxvCliVersion(0, 5, 0); // >= 0.5.0
-        public static readonly FxvCliVersion MaxVersion = new FxvCliVersion(0, 9, 0); // < 0.9.0
+        public static readonly FxvCliVersion MaxVersion = new FxvCliVersion(0, 10, 0); // < 0.10.0
 
         public static bool? IsVersionCompatible => s_isVersionCompatible;
         public static string LastVersionString => s_lastVersionString;
@@ -145,9 +145,15 @@ namespace FlexVault.VCS.Editor.Core
                 return false;
             }
 
-            if (cliVersion < MinVersion || cliVersion >= MaxVersion)
+            if (cliVersion < MinVersion)
             {
-                errorMessage = $"Incompatible FlexVault CLI version '{versionStr}'. This plugin supports fxv >= {MinVersion}, < {MaxVersion}.";
+                errorMessage = $"Incompatible FlexVault CLI version '{versionStr}'. This plugin requires fxv >= {MinVersion}, < {MaxVersion}. Please upgrade your fxv CLI executable to a compatible version (e.g. run 'fxv update' or download the latest release from https://fxv.dev).";
+                return false;
+            }
+
+            if (cliVersion >= MaxVersion)
+            {
+                errorMessage = $"Incompatible FlexVault CLI version '{versionStr}'. This plugin requires fxv >= {MinVersion}, < {MaxVersion}. Please update the FlexVault Unity plugin to match your CLI version, or configure a compatible CLI path in Project Settings > Version Control > FlexVault.";
                 return false;
             }
 

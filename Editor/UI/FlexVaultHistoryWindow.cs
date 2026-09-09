@@ -23,12 +23,44 @@ namespace FlexVault.VCS.Editor.UI
             window.Show();
         }
 
+        private void OnEnable()
+        {
+            FlexVaultStateCache.OnStateChanged += OnStateChanged;
+            if (FlexVaultSettings.IsInFlexVaultRepository() && FlexVaultStateCache.LatestStatus == null)
+            {
+                FlexVaultStateCache.RefreshAsync();
+            }
+        }
+
+        private void OnDisable()
+        {
+            FlexVaultStateCache.OnStateChanged -= OnStateChanged;
+        }
+
+        private void OnFocus()
+        {
+            if (FlexVaultSettings.IsInFlexVaultRepository() && FlexVaultStateCache.LatestStatus == null)
+            {
+                FlexVaultStateCache.RefreshAsync();
+            }
+        }
+
+        private void OnStateChanged()
+        {
+            Repaint();
+        }
+
         private async void LoadHistory()
         {
             if (!FlexVaultSettings.IsInFlexVaultRepository())
             {
                 m_statusMessage = "No FlexVault repository detected.";
                 return;
+            }
+
+            if (FlexVaultStateCache.LatestStatus == null)
+            {
+                FlexVaultStateCache.RefreshAsync();
             }
 
             m_isLoading = true;
@@ -111,17 +143,16 @@ namespace FlexVault.VCS.Editor.UI
 
         private void DrawHistoryEntry(CommitRefJson entry, int index)
         {
-            bool isCurrent = FlexVaultStateCache.IsCurrentWorkspaceRevision(entry);
+            bool isCurrent = FlexVaultStateCache.IsCurrentWorkspaceRevision(entry, m_entries);
             var prevBg = GUI.backgroundColor;
             if (isCurrent)
             {
                 GUI.backgroundColor = EditorGUIUtility.isProSkin
-                    ? new Color(0.18f, 0.42f, 0.28f, 1f)
+                    ? new Color(0.20f, 0.45f, 0.28f, 1f)
                     : new Color(0.72f, 0.92f, 0.78f, 1f);
             }
             var bgStyle = (index % 2 == 0) ? EditorStyles.helpBox : EditorStyles.textArea;
             EditorGUILayout.BeginVertical(bgStyle);
-            GUI.backgroundColor = prevBg;
 
             {
                 EditorGUILayout.BeginHorizontal();
@@ -145,8 +176,8 @@ namespace FlexVault.VCS.Editor.UI
                     if (isCurrent)
                     {
                         Color prevCol2 = GUI.contentColor;
-                        GUI.contentColor = new Color(0.2f, 0.9f, 0.4f);
-                        GUILayout.Label("● Current", EditorStyles.boldLabel, GUILayout.Width(68));
+                        GUI.contentColor = EditorGUIUtility.isProSkin ? new Color(0.3f, 1f, 0.5f) : new Color(0.1f, 0.6f, 0.2f);
+                        GUILayout.Label("● Current", EditorStyles.boldLabel, GUILayout.Width(72));
                         GUI.contentColor = prevCol2;
                     }
 
@@ -212,6 +243,7 @@ namespace FlexVault.VCS.Editor.UI
                 }
             }
             EditorGUILayout.EndVertical();
+            GUI.backgroundColor = prevBg;
             GUILayout.Space(2f);
         }
 

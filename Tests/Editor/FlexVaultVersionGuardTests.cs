@@ -70,6 +70,9 @@ namespace FlexVault.VCS.Editor.Tests
 
             Assert.IsTrue(FlexVaultVersionGuard.CheckVersion("0.8.1", out string error3));
             Assert.IsNull(error3);
+
+            Assert.IsTrue(FlexVaultVersionGuard.CheckVersion("0.9.0", out string error4));
+            Assert.IsNull(error4);
         }
 
         [Test]
@@ -79,15 +82,18 @@ namespace FlexVault.VCS.Editor.Tests
             Assert.IsFalse(FlexVaultVersionGuard.CheckVersion("0.4.0", out string errorBelow));
             Assert.IsNotNull(errorBelow);
             StringAssert.Contains("Incompatible FlexVault CLI version", errorBelow);
+            StringAssert.Contains("Please upgrade your fxv CLI executable", errorBelow);
 
-            // Upper bound (exclusive 0.9.0)
-            Assert.IsFalse(FlexVaultVersionGuard.CheckVersion("0.9.0", out string errorAtUpper));
+            // Upper bound (exclusive)
+            Assert.IsFalse(FlexVaultVersionGuard.CheckVersion(FlexVaultVersionGuard.MaxVersion.ToString(), out string errorAtUpper));
             Assert.IsNotNull(errorAtUpper);
             StringAssert.Contains("Incompatible FlexVault CLI version", errorAtUpper);
+            StringAssert.Contains("Please update the FlexVault Unity plugin", errorAtUpper);
 
             // Above upper bound
             Assert.IsFalse(FlexVaultVersionGuard.CheckVersion("1.0.0", out string errorAbove));
             Assert.IsNotNull(errorAbove);
+            StringAssert.Contains("Incompatible FlexVault CLI version", errorAbove);
 
             // Malformed
             Assert.IsFalse(FlexVaultVersionGuard.CheckVersion("x.4.2", out string errorMalformed));
