@@ -73,7 +73,7 @@ namespace FlexVault.VCS.Editor.Tests
         [Test]
         public async Task RunCommandAsync_NonExistentBinary_FailsGracefully()
         {
-            const string invalidBinary = @"C:\NonexistentDir\definitely_not_a_binary.exe";
+            string invalidBinary = Path.Combine(Path.GetTempPath(), "nonexistent_fxv_dir", "definitely_not_a_binary");
 
             // Ensure it does not throw an unhandled exception, but returns Success == false
             var result = await FxvRunner.RunCommandAsync<StatusPayload>(new[] { "status" }, customBinaryPath: invalidBinary);
@@ -85,7 +85,7 @@ namespace FlexVault.VCS.Editor.Tests
         [Test]
         public async Task CatToFileAsync_NonExistentBinary_ReturnsFalseCleanly()
         {
-            const string invalidBinary = @"C:\NonexistentDir\definitely_not_a_binary.exe";
+            string invalidBinary = Path.Combine(Path.GetTempPath(), "nonexistent_fxv_dir", "definitely_not_a_binary");
             string tempTarget = Path.Combine(Path.GetTempPath(), "target_" + Guid.NewGuid().ToString("N") + ".txt");
             LogAssert.Expect(UnityEngine.LogType.Error, new Regex("CatToFileAsync failed"));
             try
