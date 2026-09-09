@@ -28,12 +28,18 @@ namespace FlexVault.VCS.Editor.Core
             {
                 if (FlexVaultSettings.IsFlexVaultActive())
                 {
-                    Debug.Log($"[FlexVault] Plugin version: {FlexVaultVersionGuard.PluginVersion}");
                     await FxvRunner.EnsureVersionCheckedAsync();
-                    if (!string.IsNullOrEmpty(FlexVaultVersionGuard.LastVersionString))
+
+                    string cliVersion = FlexVaultVersionGuard.LastVersionString;
+                    if (!string.IsNullOrEmpty(cliVersion))
                     {
-                        Debug.Log($"[FlexVault] CLI version: {FlexVaultVersionGuard.LastVersionString}");
+                        Debug.Log($"[FlexVault] Plugin loaded at version {FlexVaultVersionGuard.PluginVersion} (CLI version {cliVersion})");
                     }
+                    else
+                    {
+                        Debug.Log($"[FlexVault] Plugin loaded at version {FlexVaultVersionGuard.PluginVersion}");
+                    }
+
                     RefreshAsync();
                 }
             };
