@@ -1,6 +1,6 @@
 {
   "name": "com.flexvault.vcs",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "displayName": "FlexVault Version Control",
   "description": "FlexVault Version Control integration for the Unity Editor.",
   "unity": "2021.3",
