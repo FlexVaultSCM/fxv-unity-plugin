@@ -23,7 +23,7 @@ namespace FlexVault.VCS.Editor.UI
         }
 
         private Tab m_currentTab = Tab.Changes;
-        private ChangesViewMode m_changesViewMode = ChangesViewMode.WorkspaceChanges;
+        private ChangesViewMode m_changesViewMode = ChangesViewMode.AllChanges;
         private Vector2 m_scrollPos;
         private Vector2 m_historyScrollPos;
         private string m_commitDescription = string.Empty;
@@ -334,7 +334,7 @@ namespace FlexVault.VCS.Editor.UI
             }
 
             int conflictCount = 0;
-            foreach (var f in displayFiles)
+            foreach (var f in allChanges)
             {
                 if (f.EffectiveState.Equals("conflicted", StringComparison.OrdinalIgnoreCase)) conflictCount++;
             }
@@ -343,7 +343,7 @@ namespace FlexVault.VCS.Editor.UI
             {
                 EditorGUILayout.BeginVertical(EditorStyles.helpBox);
                 {
-                    EditorGUILayout.LabelField($"<b>{conflictCount} Conflicted File(s) Detected</b>", EditorStyles.wordWrappedLabel);
+                    EditorGUILayout.LabelField($"{conflictCount} Conflicted File(s) Detected", EditorStyles.boldLabel);
                     EditorGUILayout.BeginHorizontal();
                     {
                         if (GUILayout.Button("Resolve All (Keep Mine)", GUILayout.Height(24)))
@@ -987,7 +987,7 @@ namespace FlexVault.VCS.Editor.UI
 
                         if (m_expandedRevisions.Contains(entry.RevisionDisplay))
                         {
-                            DrawExpandedChanges(entry, i);
+                            DrawExpandedChanges(entry, i, isCurrent);
                         }
                     }
                     EditorGUILayout.EndVertical();
@@ -1025,7 +1025,7 @@ namespace FlexVault.VCS.Editor.UI
             }
         }
 
-        private void DrawExpandedChanges(CommitRefJson entry, int commitIndex)
+        private void DrawExpandedChanges(CommitRefJson entry, int commitIndex, bool isCurrent)
         {
             string rev = entry.RevisionDisplay;
             if (m_loadingChangeInfo.Contains(rev))
@@ -1066,7 +1066,7 @@ namespace FlexVault.VCS.Editor.UI
 
                         if (!string.Equals(file.Action, "deleted", StringComparison.OrdinalIgnoreCase))
                         {
-                            if (GUILayout.Button("Diff vs Current", EditorStyles.miniButton, GUILayout.Width(90)))
+                            if (!isCurrent && GUILayout.Button("Diff vs Current", EditorStyles.miniButton, GUILayout.Width(90)))
                             {
                                 _ = FlexVaultDiffHelper.DiffWithWorkingCopyAsync(file.Path, rev);
                             }
