@@ -7,7 +7,7 @@ Unity Editor Version Control plugin for [FlexVault](https://fxv.dev). Integrates
 ## Requirements
 
 * **Unity**: Unity 2021.3 LTS, 2022.3 LTS, or Unity 6+.
-* **FlexVault CLI**: `fxv` binary version `0.5.0` to `< 0.9.0` installed and accessible (or configured via Project Settings).
+* **FlexVault CLI**: `fxv` binary version `0.5.0` to `< 0.10.0` installed and accessible (or configured via Project Settings).
 * **Newtonsoft JSON**: Automatically resolved via Package Manager (`com.unity.nuget.newtonsoft-json`).
 
 ---

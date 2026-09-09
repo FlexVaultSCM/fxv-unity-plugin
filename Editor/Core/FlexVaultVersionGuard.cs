@@ -160,7 +160,7 @@ namespace FlexVault.VCS.Editor.Core
             return true;
         }
 
-        public const string DefaultPluginVersion = "0.1.0";
+        public const string DefaultPluginVersion = "unknown";
 
         public static string PluginVersion
         {
