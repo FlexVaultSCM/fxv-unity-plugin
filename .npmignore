@@ -1,0 +1,9 @@
+.git/
+.github/
+.gitignore
+release-please*.json
+.release-please*.json
+*.tgz
+*.sha256
+*.zip
+.fxv_workspace/
