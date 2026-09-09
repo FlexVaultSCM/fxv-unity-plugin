@@ -1068,7 +1068,16 @@ namespace FlexVault.VCS.Editor.UI
                 }
                 else
                 {
-                    EditorUtility.DisplayDialog("Go To Complete", $"Workspace state moved to '{targetRevision}'.", "OK");
+                    string msg = $"Workspace state moved to '{targetRevision}'.";
+                    if (HasOpenInstances<FlexVaultWindow>())
+                    {
+                        GetWindow<FlexVaultWindow>().ShowNotification(new GUIContent(msg));
+                    }
+                    else if (HasOpenInstances<FlexVaultHistoryWindow>())
+                    {
+                        GetWindow<FlexVaultHistoryWindow>().ShowNotification(new GUIContent(msg));
+                    }
+                    Debug.Log($"[FlexVault] {msg}");
                 }
             }
             catch (Exception ex)
