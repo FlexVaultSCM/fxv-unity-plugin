@@ -122,7 +122,12 @@ namespace FlexVault.VCS.Editor.UI
                         }).ToList();
 
                         var pairs = await Task.WhenAll(fetchTasks);
-                        m_entries = pairs.Where(p => p.touchesTarget).Select(p => p.entry).ToList();
+                        m_entries = pairs.Where(p =>
+                        {
+                            if (p.touchesTarget) return true;
+                            if (FlexVaultStateCache.IsCurrentWorkspaceRevision(p.entry, allEntries)) return true;
+                            return false;
+                        }).Select(p => p.entry).ToList();
                         m_statusMessage = m_entries.Count == 0 ? $"No revisions found that modified '{m_filterPath}'." : string.Empty;
                     }
                     else
