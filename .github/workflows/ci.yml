@@ -33,7 +33,7 @@ jobs:
           node -e "
             const fs = require('fs');
             const path = require('path');
-            const targets = ['package.json', 'README.md', 'Editor', 'Tests', 'Runtime'];
+            const targets = ['package.json', 'README.md', 'LICENSE.md', 'Editor', 'Tests', 'Runtime'];
 
             function checkDir(dir) {
               const entries = fs.readdirSync(dir, { withFileTypes: true });

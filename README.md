@@ -66,3 +66,10 @@ Navigate to **Edit > Project Settings > Version Control > FlexVault**:
 * **Project Settings & Authentication**:
   * Auto-discovers CLI executables and tests CLI connection.
   * In-editor user login and logout management (`fxv login` / `fxv logout`).
+
+---
+
+## Feedback & Support
+
+Bug reports and feedback are welcome on the [FlexVault Discord](https://discord.gg/KCMHRQBDf).
+For documentation, see [docs.fxv.dev](https://docs.fxv.dev).
