@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.1.1...v0.2.0) (2026-09-09)
+
+
+### Features
+
+* add sync warning and button for outdated workspace before publishing ([#4](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/4)) ([6524d11](https://github.com/FlexVaultSCM/fxv-unity-plugin/commit/6524d111a220c4c4693da32d26e1f90c4be43a1d))
+
 ## [0.1.1](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.1.0...v0.1.1) (2026-09-09)
 
 
