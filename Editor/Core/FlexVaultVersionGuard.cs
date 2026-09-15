@@ -100,10 +100,10 @@ namespace FlexVault.VCS.Editor.Core
     public static class FlexVaultVersionGuard
     {
         // Pinned compatible range: [MinVersion, MaxVersion)
-        // MinVersion is 0.5.0 because 'fxv cat' required for diff/history was introduced in v0.5.0.
-        // MaxVersion is 0.10.0 to support releases through v0.9.x.
-        public static readonly FxvCliVersion MinVersion = new FxvCliVersion(0, 5, 0); // >= 0.5.0
-        public static readonly FxvCliVersion MaxVersion = new FxvCliVersion(0, 10, 0); // < 0.10.0
+        // MinVersion tracks the `status` command's payload schema; versions below it emit a shape
+        // this plugin no longer parses.
+        public static readonly FxvCliVersion MinVersion = new FxvCliVersion(0, 10, 1);
+        public static readonly FxvCliVersion MaxVersion = new FxvCliVersion(0, 11, 0);
 
         public static bool? IsVersionCompatible => s_isVersionCompatible;
         public static string LastVersionString => s_lastVersionString;

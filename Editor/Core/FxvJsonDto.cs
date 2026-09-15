@@ -126,6 +126,29 @@ namespace FlexVault.VCS.Editor.Core
         public int WorkspaceNeedSnapshot { get; set; }
     }
 
+    /// Why a file is in conflict.
+    [Serializable]
+    public class ConflictState
+    {
+        [JsonProperty("kind")]
+        public string Kind { get; set; }
+
+        [JsonIgnore]
+        public string Description
+        {
+            get
+            {
+                switch (Kind)
+                {
+                    case "content": return "Both sides changed this file's content.";
+                    case "deleted": return "One side deleted this path while the other changed it.";
+                    case "type_change": return "One side replaced this path with a directory.";
+                    default: return "This path is in conflict.";
+                }
+            }
+        }
+    }
+
     [Serializable]
     public class FileStatusItem
     {
@@ -139,7 +162,7 @@ namespace FlexVault.VCS.Editor.Core
         public string WorkspaceState { get; set; }
 
         [JsonProperty("conflict_state")]
-        public object ConflictState { get; set; }
+        public ConflictState ConflictState { get; set; }
 
         [JsonProperty("size")]
         public ulong? Size { get; set; }
