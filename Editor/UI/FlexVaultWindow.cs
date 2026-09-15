@@ -415,7 +415,10 @@ namespace FlexVault.VCS.Editor.UI
 
                             DrawStateBadge(displayState);
 
-                            if (GUILayout.Button(item.Path, EditorStyles.linkLabel))
+                            var pathContent = item.ConflictState != null
+                                ? new GUIContent(item.Path, item.ConflictState.Description)
+                                : new GUIContent(item.Path);
+                            if (GUILayout.Button(pathContent, EditorStyles.linkLabel))
                             {
                                 FlexVaultMetaHelper.PingAsset(item.Path);
                             }

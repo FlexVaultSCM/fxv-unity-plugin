@@ -496,7 +496,7 @@ namespace FlexVault.VCS.Editor.Core
                 foreach (var file in status.Files)
                 {
                     newChangedFiles.Add(file);
-                    if (file.NeedsSnapshot)
+                    if (file.NeedsSnapshot || file.IsConflicted)
                     {
                         newWorkspaceChanges.Add(file);
                     }

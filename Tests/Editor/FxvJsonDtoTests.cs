@@ -274,7 +274,7 @@ namespace FlexVault.VCS.Editor.Tests
             var itemWithObj = new FileStatusItem
             {
                 WorkspaceState = "modified",
-                ConflictState = new object()
+                ConflictState = new ConflictState { Kind = "content" }
             };
             Assert.IsTrue(itemWithObj.IsConflicted);
             Assert.AreEqual("conflicted", itemWithObj.EffectiveState);
