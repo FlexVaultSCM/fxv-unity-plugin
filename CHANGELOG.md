@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.4.0](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.3.0...v0.4.0) (2026-09-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* Upgrade plugin for fxv CLI 0.10.1+ (status schema v2) ([#11](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/11))
+
+### Features
+
+* Upgrade plugin for fxv CLI 0.10.1+ (status schema v2) ([#11](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/11)) ([7467fe2](https://github.com/FlexVaultSCM/fxv-unity-plugin/commit/7467fe231cd620a7769f6126a1d6a05173362a9d))
+
+
+### Documentation
+
+* expand package manager install instructions and add package metadata ([#8](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/8)) ([00ef884](https://github.com/FlexVaultSCM/fxv-unity-plugin/commit/00ef884405fa2160cb22a275deb22ead4a424771))
+
 ## [0.3.0](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.2.0...v0.3.0) (2026-09-09)
 
 
