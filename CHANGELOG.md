@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.0](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.4.0...v0.5.0) (2026-09-16)
+
+
+### Features
+
+* Add auto-snapshot hook for high-entropy editor operations ([#14](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/14)) ([a2394e4](https://github.com/FlexVaultSCM/fxv-unity-plugin/commit/a2394e4aff5a0e082209a40701a3dca34f1f73ff))
+* prompt to exclude generated folders from .fxvignore on startup ([#13](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/13)) ([6b4fd2e](https://github.com/FlexVaultSCM/fxv-unity-plugin/commit/6b4fd2e6bf76594f57b3b3a04a85461185d81591))
+* Simplify Changes tab UX and add periodic auto-snapshot ([#15](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/15)) ([31c0a3f](https://github.com/FlexVaultSCM/fxv-unity-plugin/commit/31c0a3ff0073ab2e8ddc5faf0744a6fa4f6fe65b))
+
 ## [0.4.0](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.3.0...v0.4.0) (2026-09-15)
 
 
