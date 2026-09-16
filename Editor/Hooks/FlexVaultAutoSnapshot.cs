@@ -184,6 +184,8 @@ namespace FlexVault.VCS.Editor.Hooks
             }
             s_lastSnapshotTime = now;
 
+            Debug.Log($"[FlexVault] {description}");
+
             // Fire-and-forget: callers here are event handlers, not places we can block on I/O.
             _ = FxvRunner.SnapshotAsync(description);
             return true;
