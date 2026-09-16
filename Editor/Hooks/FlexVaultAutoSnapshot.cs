@@ -40,8 +40,11 @@ namespace FlexVault.VCS.Editor.Hooks
 
         // Roots of currently-connected prefab instances in open scenes, so a structural change
         // event can be recognized as "this GameObject just lost its prefab connection" (an
-        // unpack) rather than ordinary editing.
+#if UNITY_6000_0_OR_NEWER
+        private static readonly HashSet<EntityId> s_knownPrefabInstanceRootIds = new HashSet<EntityId>();
+#else
         private static readonly HashSet<int> s_knownPrefabInstanceRootIds = new HashSet<int>();
+#endif
 
         static FlexVaultAutoSnapshot()
         {
@@ -136,7 +139,11 @@ namespace FlexVault.VCS.Editor.Hooks
                     case ObjectChangeKind.ChangeGameObjectStructureHierarchy:
                         restructuredInBatch++;
                         stream.GetChangeGameObjectStructureHierarchyEvent(i, out var structureData);
+#if UNITY_6000_0_OR_NEWER
+                        CheckForPrefabUnpack(s_structureChangeEntityIdAccessor(structureData), ref unpackedRoots);
+#else
                         CheckForPrefabUnpack(structureData.instanceId, ref unpackedRoots);
+#endif
                         break;
                 }
             }
@@ -164,18 +171,48 @@ namespace FlexVault.VCS.Editor.Hooks
             }
         }
 
-        private static void CheckForPrefabUnpack(int instanceId, ref List<GameObject> unpackedRoots)
+#if UNITY_6000_0_OR_NEWER
+        // Starting in Unity 6.6 (6000.6.x), ChangeGameObjectStructureHierarchyEventArgs deprecated
+        // instanceId in favor of entityId. On earlier Unity 6 releases (such as 6000.3), entityId
+        // does not exist yet. Binding dynamically at startup allows both versions to compile without
+        // CS0619 obsolete errors or CS1061 missing member errors.
+        private static readonly System.Func<ChangeGameObjectStructureHierarchyEventArgs, EntityId> s_structureChangeEntityIdAccessor = CreateStructureChangeEntityIdAccessor();
+
+        private static System.Func<ChangeGameObjectStructureHierarchyEventArgs, EntityId> CreateStructureChangeEntityIdAccessor()
         {
-            if (!s_knownPrefabInstanceRootIds.Contains(instanceId))
+            var structType = typeof(ChangeGameObjectStructureHierarchyEventArgs);
+            var entityIdProp = structType.GetProperty("entityId");
+            if (entityIdProp != null)
+            {
+                var param = System.Linq.Expressions.Expression.Parameter(structType, "e");
+                var propAccess = System.Linq.Expressions.Expression.Property(param, entityIdProp);
+                return System.Linq.Expressions.Expression.Lambda<System.Func<ChangeGameObjectStructureHierarchyEventArgs, EntityId>>(propAccess, param).Compile();
+            }
+
+            var instanceIdProp = structType.GetProperty("instanceId");
+            if (instanceIdProp != null)
+            {
+                var param = System.Linq.Expressions.Expression.Parameter(structType, "e");
+                var propAccess = System.Linq.Expressions.Expression.Property(param, instanceIdProp);
+                var fromMethod = typeof(EntityId).GetMethod("From", new[] { typeof(int) });
+                if (fromMethod != null)
+                {
+                    var callFrom = System.Linq.Expressions.Expression.Call(fromMethod, propAccess);
+                    return System.Linq.Expressions.Expression.Lambda<System.Func<ChangeGameObjectStructureHierarchyEventArgs, EntityId>>(callFrom, param).Compile();
+                }
+            }
+
+            return _ => EntityId.None;
+        }
+
+        private static void CheckForPrefabUnpack(EntityId entityId, ref List<GameObject> unpackedRoots)
+        {
+            if (!s_knownPrefabInstanceRootIds.Contains(entityId))
             {
                 return;
             }
 
-#if UNITY_6000_0_OR_NEWER
-            GameObject go = EditorUtility.EntityIdToObject(instanceId) as GameObject;
-#else
-            GameObject go = EditorUtility.InstanceIDToObject(instanceId) as GameObject;
-#endif
+            GameObject go = EditorUtility.EntityIdToObject(entityId) as GameObject;
             if (go == null || PrefabUtility.GetPrefabInstanceStatus(go) == PrefabInstanceStatus.Connected)
             {
                 // Still connected (or already gone) - not an unpack.
@@ -188,6 +225,28 @@ namespace FlexVault.VCS.Editor.Hooks
             }
             unpackedRoots.Add(go);
         }
+#else
+        private static void CheckForPrefabUnpack(int instanceId, ref List<GameObject> unpackedRoots)
+        {
+            if (!s_knownPrefabInstanceRootIds.Contains(instanceId))
+            {
+                return;
+            }
+
+            GameObject go = EditorUtility.InstanceIDToObject(instanceId) as GameObject;
+            if (go == null || PrefabUtility.GetPrefabInstanceStatus(go) == PrefabInstanceStatus.Connected)
+            {
+                // Still connected (or already gone) - not an unpack.
+                return;
+            }
+
+            if (unpackedRoots == null)
+            {
+                unpackedRoots = new List<GameObject>();
+            }
+            unpackedRoots.Add(go);
+        }
+#endif
 
         private static void RefreshPrefabInstanceRoots()
         {
@@ -211,7 +270,11 @@ namespace FlexVault.VCS.Editor.Hooks
             if (PrefabUtility.GetPrefabInstanceStatus(go) == PrefabInstanceStatus.Connected
                 && PrefabUtility.GetOutermostPrefabInstanceRoot(go) == go)
             {
+#if UNITY_6000_0_OR_NEWER
+                s_knownPrefabInstanceRootIds.Add(go.GetEntityId());
+#else
                 s_knownPrefabInstanceRootIds.Add(go.GetInstanceID());
+#endif
             }
 
             Transform t = go.transform;
