@@ -1,20 +1,25 @@
+using System.Collections.Generic;
 using System.IO;
 using FlexVault.VCS.Editor.Core;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace FlexVault.VCS.Editor.Hooks
 {
     /// <summary>
     /// Fires a best-effort local "fxv snapshot" around specific high-entropy editor operations,
     /// not on every save. A single-object tweak followed by Ctrl+S doesn't get one; a prefab
-    /// apply, a terrain save, or a scene save after a bulk delete/reparent does.
+    /// apply, a terrain save, a scene save after a bulk delete/reparent, a prefab unpack, or a
+    /// large asset reimport does.
     /// </summary>
     [InitializeOnLoad]
     public class FlexVaultAutoSnapshot : AssetModificationProcessor
     {
-        // One save gesture can trigger OnWillSaveAssets more than once in a row (e.g. prefab
-        // stage auto-save then the outer scene save). Debounce so it's one snapshot, not a burst.
+        // One trigger firing shouldn't spawn a burst of snapshots for what's really one gesture
+        // (e.g. prefab stage auto-save then the outer scene save, or unpack immediately followed
+        // by a save).
         private const double DebounceSeconds = 2.0;
         private static double s_lastSnapshotTime = -1;
 
@@ -25,15 +30,25 @@ namespace FlexVault.VCS.Editor.Hooks
         private static int s_pendingDestroyedCount;
         private static int s_pendingRestructuredCount;
 
+        // Roots of currently-connected prefab instances in open scenes, so a structural change
+        // event can be recognized as "this GameObject just lost its prefab connection" (an
+        // unpack) rather than ordinary editing.
+        private static readonly HashSet<int> s_knownPrefabInstanceRootIds = new HashSet<int>();
+
         static FlexVaultAutoSnapshot()
         {
             ObjectChangeEvents.changesPublished += OnObjectChangesPublished;
+            EditorSceneManager.sceneOpened += (scene, mode) => RefreshPrefabInstanceRoots();
+            EditorSceneManager.sceneSaved += scene => RefreshPrefabInstanceRoots();
+            // Scenes aren't guaranteed to be loaded yet at static-constructor time.
+            EditorApplication.delayCall += RefreshPrefabInstanceRoots;
         }
 
         private static void OnObjectChangesPublished(ref ObjectChangeEventStream stream)
         {
             int destroyedInBatch = 0;
             int restructuredInBatch = 0;
+            List<GameObject> unpackedRoots = null;
 
             for (int i = 0; i < stream.length; i++)
             {
@@ -44,6 +59,8 @@ namespace FlexVault.VCS.Editor.Hooks
                         break;
                     case ObjectChangeKind.ChangeGameObjectStructureHierarchy:
                         restructuredInBatch++;
+                        stream.GetChangeGameObjectStructureHierarchyEvent(i, out var structureData);
+                        CheckForPrefabUnpack(structureData.instanceId, ref unpackedRoots);
                         break;
                 }
             }
@@ -57,6 +74,69 @@ namespace FlexVault.VCS.Editor.Hooks
             if (restructuredInBatch >= BulkStructuralChangeThreshold)
             {
                 s_pendingRestructuredCount += restructuredInBatch;
+            }
+
+            if (unpackedRoots != null)
+            {
+                foreach (GameObject root in unpackedRoots)
+                {
+                    TriggerSnapshotDirect($"Auto-snapshot after prefab unpack ({root.name})");
+                }
+                // The unpacked roots are no longer prefab instances - drop them from tracking.
+                RefreshPrefabInstanceRoots();
+            }
+        }
+
+        private static void CheckForPrefabUnpack(int instanceId, ref List<GameObject> unpackedRoots)
+        {
+            if (!s_knownPrefabInstanceRootIds.Contains(instanceId))
+            {
+                return;
+            }
+
+            GameObject go = EditorUtility.InstanceIDToObject(instanceId) as GameObject;
+            if (go == null || PrefabUtility.GetPrefabInstanceStatus(go) == PrefabInstanceStatus.Connected)
+            {
+                // Still connected (or already gone) - not an unpack.
+                return;
+            }
+
+            if (unpackedRoots == null)
+            {
+                unpackedRoots = new List<GameObject>();
+            }
+            unpackedRoots.Add(go);
+        }
+
+        private static void RefreshPrefabInstanceRoots()
+        {
+            s_knownPrefabInstanceRootIds.Clear();
+            for (int s = 0; s < SceneManager.sceneCount; s++)
+            {
+                Scene scene = SceneManager.GetSceneAt(s);
+                if (!scene.isLoaded)
+                {
+                    continue;
+                }
+                foreach (GameObject root in scene.GetRootGameObjects())
+                {
+                    CollectPrefabInstanceRoots(root);
+                }
+            }
+        }
+
+        private static void CollectPrefabInstanceRoots(GameObject go)
+        {
+            if (PrefabUtility.GetPrefabInstanceStatus(go) == PrefabInstanceStatus.Connected
+                && PrefabUtility.GetOutermostPrefabInstanceRoot(go) == go)
+            {
+                s_knownPrefabInstanceRootIds.Add(go.GetInstanceID());
+            }
+
+            Transform t = go.transform;
+            for (int i = 0; i < t.childCount; i++)
+            {
+                CollectPrefabInstanceRoots(t.GetChild(i).gameObject);
             }
         }
 
@@ -80,18 +160,32 @@ namespace FlexVault.VCS.Editor.Hooks
                 return;
             }
 
+            if (TriggerSnapshotDirect(description))
+            {
+                s_pendingDestroyedCount = 0;
+                s_pendingRestructuredCount = 0;
+            }
+        }
+
+        // Shared entry point for every trigger, including ones not tied to a save (unpack,
+        // reimport). Returns false if swallowed by the debounce.
+        internal static bool TriggerSnapshotDirect(string description)
+        {
+            if (!FlexVaultSettings.IsFlexVaultActive())
+            {
+                return false;
+            }
+
             double now = EditorApplication.timeSinceStartup;
             if (s_lastSnapshotTime >= 0 && now - s_lastSnapshotTime < DebounceSeconds)
             {
-                return;
+                return false;
             }
             s_lastSnapshotTime = now;
-            s_pendingDestroyedCount = 0;
-            s_pendingRestructuredCount = 0;
 
-            // Fire-and-forget: OnWillSaveAssets has to return synchronously with the paths to
-            // save, so we don't wait on the snapshot here.
+            // Fire-and-forget: callers here are event handlers, not places we can block on I/O.
             _ = FxvRunner.SnapshotAsync(description);
+            return true;
         }
 
         private static string BuildDescription(string[] paths)
@@ -133,6 +227,25 @@ namespace FlexVault.VCS.Editor.Hooks
             }
 
             return null;
+        }
+    }
+
+    // Godot's plugin has the same post-hoc bulk-reimport gate; kept as a separate top-level class
+    // here since OnPostprocessAllAssets requires deriving directly from AssetPostprocessor.
+    internal class FlexVaultReimportWatcher : AssetPostprocessor
+    {
+        // Importing a handful of assets after a normal edit isn't worth a checkpoint; a big
+        // batch (VCS sync, platform switch, asset store import) is.
+        private const int BulkReimportThreshold = 20;
+
+        private static void OnPostprocessAllAssets(string[] importedAssets, string[] deletedAssets, string[] movedAssets, string[] movedFromAssetPaths)
+        {
+            if (importedAssets.Length < BulkReimportThreshold)
+            {
+                return;
+            }
+
+            FlexVaultAutoSnapshot.TriggerSnapshotDirect($"Auto-snapshot after bulk reimport ({importedAssets.Length} assets)");
         }
     }
 }
