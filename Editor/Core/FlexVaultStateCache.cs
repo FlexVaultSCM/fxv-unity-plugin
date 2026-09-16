@@ -45,6 +45,7 @@ namespace FlexVault.VCS.Editor.Core
                     }
 
                     RefreshAsync();
+                    FlexVaultIgnoreChecker.CheckAndPromptOnStartup();
                 }
             };
         }

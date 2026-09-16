@@ -315,7 +315,7 @@ namespace FlexVault.VCS.Editor.UI
             }
         }
 
-        private static void AppendUniqueLines(string filePath, IEnumerable<string> lines)
+        internal static void AppendUniqueLines(string filePath, IEnumerable<string> lines)
         {
             var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             bool needsPrecedingNewline = false;
