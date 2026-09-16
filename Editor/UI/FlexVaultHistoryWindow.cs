@@ -234,14 +234,6 @@ namespace FlexVault.VCS.Editor.UI
                         }
                     }
 
-                    if (isCurrent)
-                    {
-                        Color prevCol2 = GUI.contentColor;
-                        GUI.contentColor = EditorGUIUtility.isProSkin ? new Color(0.3f, 1f, 0.5f) : new Color(0.1f, 0.6f, 0.2f);
-                        GUILayout.Label("● Current", EditorStyles.boldLabel, GUILayout.Width(72));
-                        GUI.contentColor = prevCol2;
-                    }
-
                     bool isPublished = entry.Commit?.Type == "published";
                     Color badgeColor = isPublished ? new Color(0.2f, 0.6f, 1f) : new Color(0.85f, 0.5f, 0.1f);
                     string typeLabel = isPublished ? "[Published]" : "[Draft]";
@@ -264,6 +256,14 @@ namespace FlexVault.VCS.Editor.UI
                     GUILayout.Label(timeStr, EditorStyles.miniLabel, GUILayout.Width(110));
 
                     GUILayout.FlexibleSpace();
+
+                    if (isCurrent)
+                    {
+                        Color prevCol2 = GUI.contentColor;
+                        GUI.contentColor = EditorGUIUtility.isProSkin ? new Color(0.3f, 1f, 0.5f) : new Color(0.1f, 0.6f, 0.2f);
+                        GUILayout.Label("● Current", EditorStyles.boldLabel, GUILayout.Width(72));
+                        GUI.contentColor = prevCol2;
+                    }
 
                     if (!string.IsNullOrEmpty(m_filterPath))
                     {
