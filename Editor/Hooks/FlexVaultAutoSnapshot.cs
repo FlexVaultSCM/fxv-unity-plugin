@@ -96,7 +96,11 @@ namespace FlexVault.VCS.Editor.Hooks
                 return;
             }
 
+#if UNITY_6000_0_OR_NEWER
+            GameObject go = EditorUtility.EntityIdToObject(instanceId) as GameObject;
+#else
             GameObject go = EditorUtility.InstanceIDToObject(instanceId) as GameObject;
+#endif
             if (go == null || PrefabUtility.GetPrefabInstanceStatus(go) == PrefabInstanceStatus.Connected)
             {
                 // Still connected (or already gone) - not an unpack.
