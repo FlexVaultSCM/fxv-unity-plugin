@@ -282,8 +282,24 @@ namespace FlexVault.VCS.Editor.Hooks
             Debug.Log($"[FlexVault] {description}");
 
             // Fire-and-forget: callers here are event handlers, not places we can block on I/O.
-            _ = FxvRunner.SnapshotAsync(description);
+            // If the snapshot itself fails, roll s_lastSnapshotTime back (unless a later snapshot
+            // has since claimed it) so a failed periodic checkpoint gets retried promptly instead
+            // of silently waiting out the full interval.
+            _ = RunAndTrackResult(description, now);
             return true;
+        }
+
+        private static async System.Threading.Tasks.Task RunAndTrackResult(string description, double triggeredAt)
+        {
+            var result = await FxvRunner.SnapshotAsync(description);
+            if (!result.Success)
+            {
+                Debug.LogWarning($"[FlexVault] Auto-snapshot failed: {result.ErrorMessage}");
+                if (s_lastSnapshotTime == triggeredAt)
+                {
+                    s_lastSnapshotTime = -1;
+                }
+            }
         }
 
         private static string BuildDescription(string[] paths)
