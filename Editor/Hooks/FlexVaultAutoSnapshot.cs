@@ -24,6 +24,13 @@ namespace FlexVault.VCS.Editor.Hooks
         private const double DebounceSeconds = 2.0;
         private static double s_lastSnapshotTime = -1;
 
+        // Periodic snapshot: if pending changes have sat for longer than the configured interval
+        // with no snapshot of any kind (hook-triggered or manual), take one automatically. Checked
+        // on a coarse timer rather than every EditorApplication.update tick, since evaluating it
+        // involves copying the current change list.
+        private const double PeriodicCheckIntervalSeconds = 5.0;
+        private static double s_lastPeriodicCheckTime = -1;
+
         // A multi-select delete/reparent fires several ObjectChangeEvents in one published batch,
         // one per affected object. Below this count it's just ordinary single-object editing.
         private const int BulkStructuralChangeThreshold = 3;
@@ -43,6 +50,74 @@ namespace FlexVault.VCS.Editor.Hooks
             EditorSceneManager.sceneSaved += scene => RefreshPrefabInstanceRoots();
             // Scenes aren't guaranteed to be loaded yet at static-constructor time.
             EditorApplication.delayCall += RefreshPrefabInstanceRoots;
+
+            // Count the periodic interval from editor/domain-reload time, not from "never" - a
+            // fresh session with old pending changes shouldn't fire a snapshot on the first tick.
+            s_lastSnapshotTime = EditorApplication.timeSinceStartup;
+            EditorApplication.update += CheckPeriodicSnapshot;
+        }
+
+        private static void CheckPeriodicSnapshot()
+        {
+            double now = EditorApplication.timeSinceStartup;
+            if (s_lastPeriodicCheckTime >= 0 && now - s_lastPeriodicCheckTime < PeriodicCheckIntervalSeconds)
+            {
+                return;
+            }
+            s_lastPeriodicCheckTime = now;
+
+            if (!FlexVaultSettings.IsFlexVaultActive())
+            {
+                return;
+            }
+
+            int intervalSeconds = FlexVaultSettings.PeriodicSnapshotIntervalSeconds;
+            if (intervalSeconds <= 0)
+            {
+                // Periodic snapshots disabled.
+                return;
+            }
+
+            if (s_lastSnapshotTime >= 0 && now - s_lastSnapshotTime < intervalSeconds)
+            {
+                return;
+            }
+
+            var pendingChanges = FlexVaultStateCache.GetWorkspaceChanges();
+            if (pendingChanges.Count == 0)
+            {
+                // Nothing to snapshot; don't burn a checkpoint on a clean workspace.
+                return;
+            }
+
+            TriggerSnapshotDirect(BuildPeriodicDescription(pendingChanges));
+        }
+
+        // A bare "Periodic auto-snapshot" tells a developer nothing when they're scanning history
+        // later - summarize what actually changed so periodic checkpoints stay as useful as the
+        // hand-triggered ones above.
+        private static string BuildPeriodicDescription(List<FileStatusItem> pendingChanges)
+        {
+            int added = 0, modified = 0, deleted = 0, conflicted = 0;
+            foreach (var file in pendingChanges)
+            {
+                switch (file.EffectiveWorkspaceState?.ToLowerInvariant())
+                {
+                    case "added": added++; break;
+                    case "modified": modified++; break;
+                    case "deleted": deleted++; break;
+                    case "conflicted": conflicted++; break;
+                }
+            }
+
+            var parts = new List<string>();
+            if (added > 0) parts.Add($"{added} added");
+            if (modified > 0) parts.Add($"{modified} modified");
+            if (deleted > 0) parts.Add($"{deleted} deleted");
+            if (conflicted > 0) parts.Add($"{conflicted} conflicted");
+
+            string summary = parts.Count > 0 ? string.Join(", ", parts) : $"{pendingChanges.Count} file(s) changed";
+            return $"Periodic auto-snapshot ({summary})";
         }
 
         private static void OnObjectChangesPublished(ref ObjectChangeEventStream stream)
@@ -173,10 +248,25 @@ namespace FlexVault.VCS.Editor.Hooks
             }
         }
 
+        // Called by any snapshot path outside this class (e.g. a manual Publish in the window)
+        // so the periodic timer counts from the most recent snapshot of any kind, not just the
+        // ones this class triggered itself.
+        internal static void NotifySnapshotOccurred()
+        {
+            s_lastSnapshotTime = EditorApplication.timeSinceStartup;
+        }
+
         // Shared entry point for every trigger, including ones not tied to a save (unpack,
         // reimport). Returns false if swallowed by the debounce.
         internal static bool TriggerSnapshotDirect(string description)
         {
+            if (string.IsNullOrWhiteSpace(description))
+            {
+                // A description-less auto-snapshot is useless in history later - every call site
+                // must supply one, or not snapshot at all.
+                return false;
+            }
+
             if (!FlexVaultSettings.IsFlexVaultActive())
             {
                 return false;
