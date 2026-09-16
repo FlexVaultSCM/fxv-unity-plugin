@@ -65,13 +65,14 @@ namespace FlexVault.VCS.Editor.Hooks
                 }
             }
 
-            // Accumulate rather than overwrite, so a couple of sub-threshold edits between saves
-            // still add up to something worth flagging.
-            if (destroyedInBatch >= BulkStructuralChangeThreshold)
+            // Accumulate every batch, even sub-threshold ones, so a couple of small edits between
+            // saves still add up to something worth flagging; the threshold is applied once, against
+            // the running total, when a save actually consumes it (see BuildDescription).
+            if (destroyedInBatch > 0)
             {
                 s_pendingDestroyedCount += destroyedInBatch;
             }
-            if (restructuredInBatch >= BulkStructuralChangeThreshold)
+            if (restructuredInBatch > 0)
             {
                 s_pendingRestructuredCount += restructuredInBatch;
             }
@@ -216,11 +217,11 @@ namespace FlexVault.VCS.Editor.Hooks
 
             if (isSceneSave)
             {
-                if (s_pendingDestroyedCount > 0)
+                if (s_pendingDestroyedCount >= BulkStructuralChangeThreshold)
                 {
                     return $"Auto-snapshot before scene save (deleted {s_pendingDestroyedCount} objects)";
                 }
-                if (s_pendingRestructuredCount > 0)
+                if (s_pendingRestructuredCount >= BulkStructuralChangeThreshold)
                 {
                     return $"Auto-snapshot before scene save (restructured {s_pendingRestructuredCount} objects)";
                 }
