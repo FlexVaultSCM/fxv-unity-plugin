@@ -239,12 +239,17 @@ namespace FlexVault.VCS.Editor.Hooks
 
         private static void OnPostprocessAllAssets(string[] importedAssets, string[] deletedAssets, string[] movedAssets, string[] movedFromAssetPaths)
         {
-            if (importedAssets.Length < BulkReimportThreshold)
+            // Asset deletion doesn't go through Unity's Undo stack, so even one deleted asset is
+            // worth a checkpoint - unlike reimports, there's no "small batch, not worth it" case.
+            if (deletedAssets.Length > 0)
             {
-                return;
+                FlexVaultAutoSnapshot.TriggerSnapshotDirect($"Auto-snapshot after asset deletion ({deletedAssets.Length} assets)");
             }
 
-            FlexVaultAutoSnapshot.TriggerSnapshotDirect($"Auto-snapshot after bulk reimport ({importedAssets.Length} assets)");
+            if (importedAssets.Length >= BulkReimportThreshold)
+            {
+                FlexVaultAutoSnapshot.TriggerSnapshotDirect($"Auto-snapshot after bulk reimport ({importedAssets.Length} assets)");
+            }
         }
     }
 }
