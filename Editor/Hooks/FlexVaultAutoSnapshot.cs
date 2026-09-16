@@ -27,7 +27,6 @@ namespace FlexVault.VCS.Editor.Hooks
 
         static FlexVaultAutoSnapshot()
         {
-            EditorApplication.wantsToQuit += OnWantsToQuit;
             ObjectChangeEvents.changesPublished += OnObjectChangesPublished;
         }
 
@@ -65,16 +64,6 @@ namespace FlexVault.VCS.Editor.Hooks
         {
             TriggerSnapshotIfWarranted(paths);
             return paths;
-        }
-
-        private static bool OnWantsToQuit()
-        {
-            if (FlexVaultSettings.IsFlexVaultActive())
-            {
-                // Last-chance checkpoint, best-effort, never blocks quitting on it.
-                _ = FxvRunner.SnapshotAsync("Auto-snapshot before editor quit");
-            }
-            return true;
         }
 
         private static void TriggerSnapshotIfWarranted(string[] paths)
