@@ -1,32 +1,69 @@
+using System.IO;
 using FlexVault.VCS.Editor.Core;
 using UnityEditor;
+using UnityEngine;
 
 namespace FlexVault.VCS.Editor.Hooks
 {
     /// <summary>
-    /// Fires a best-effort local "fxv snapshot" right before high-entropy editor operations that
-    /// write asset/scene data to disk - prefab applies, prefab unpacks followed by a scene save,
-    /// terrain edits, and ordinary scene/asset saves all funnel through
-    /// AssetModificationProcessor.OnWillSaveAssets before Unity writes anything, so hooking it once
-    /// here covers all of them without needing a separate hook per menu command.
+    /// Fires a best-effort local "fxv snapshot" around specific high-entropy editor operations,
+    /// not on every save. A single-object tweak followed by Ctrl+S doesn't get one; a prefab
+    /// apply, a terrain save, or a scene save after a bulk delete/reparent does.
     /// </summary>
     [InitializeOnLoad]
     public class FlexVaultAutoSnapshot : AssetModificationProcessor
     {
-        // A single "Save" gesture (Ctrl+S, prefab stage auto-save, "Save Project") can trigger
-        // OnWillSaveAssets more than once in quick succession. Debounce so one save gesture produces
-        // one snapshot instead of a burst of overlapping fxv processes.
+        // One save gesture can trigger OnWillSaveAssets more than once in a row (e.g. prefab
+        // stage auto-save then the outer scene save). Debounce so it's one snapshot, not a burst.
         private const double DebounceSeconds = 2.0;
         private static double s_lastSnapshotTime = -1;
+
+        // A multi-select delete/reparent fires several ObjectChangeEvents in one published batch,
+        // one per affected object. Below this count it's just ordinary single-object editing.
+        private const int BulkStructuralChangeThreshold = 3;
+
+        private static int s_pendingDestroyedCount;
+        private static int s_pendingRestructuredCount;
 
         static FlexVaultAutoSnapshot()
         {
             EditorApplication.wantsToQuit += OnWantsToQuit;
+            ObjectChangeEvents.changesPublished += OnObjectChangesPublished;
+        }
+
+        private static void OnObjectChangesPublished(ref ObjectChangeEventStream stream)
+        {
+            int destroyedInBatch = 0;
+            int restructuredInBatch = 0;
+
+            for (int i = 0; i < stream.length; i++)
+            {
+                switch (stream.GetEventType(i))
+                {
+                    case ObjectChangeKind.DestroyGameObjectHierarchy:
+                        destroyedInBatch++;
+                        break;
+                    case ObjectChangeKind.ChangeGameObjectStructureHierarchy:
+                        restructuredInBatch++;
+                        break;
+                }
+            }
+
+            // Accumulate rather than overwrite, so a couple of sub-threshold edits between saves
+            // still add up to something worth flagging.
+            if (destroyedInBatch >= BulkStructuralChangeThreshold)
+            {
+                s_pendingDestroyedCount += destroyedInBatch;
+            }
+            if (restructuredInBatch >= BulkStructuralChangeThreshold)
+            {
+                s_pendingRestructuredCount += restructuredInBatch;
+            }
         }
 
         private static string[] OnWillSaveAssets(string[] paths)
         {
-            TriggerSnapshot(paths);
+            TriggerSnapshotIfWarranted(paths);
             return paths;
         }
 
@@ -34,21 +71,23 @@ namespace FlexVault.VCS.Editor.Hooks
         {
             if (FlexVaultSettings.IsFlexVaultActive())
             {
-                // Best-effort last-chance snapshot; never blocks quitting on it.
+                // Last-chance checkpoint, best-effort, never blocks quitting on it.
                 _ = FxvRunner.SnapshotAsync("Auto-snapshot before editor quit");
             }
             return true;
         }
 
-        private static void TriggerSnapshot(string[] paths)
+        private static void TriggerSnapshotIfWarranted(string[] paths)
         {
-            if (paths == null || paths.Length == 0)
+            if (paths == null || paths.Length == 0 || !FlexVaultSettings.IsFlexVaultActive())
             {
                 return;
             }
 
-            if (!FlexVaultSettings.IsFlexVaultActive())
+            string description = BuildDescription(paths);
+            if (description == null)
             {
+                // Ordinary save, nothing risky detected - deliberately not snapshotted.
                 return;
             }
 
@@ -58,35 +97,53 @@ namespace FlexVault.VCS.Editor.Hooks
                 return;
             }
             s_lastSnapshotTime = now;
+            s_pendingDestroyedCount = 0;
+            s_pendingRestructuredCount = 0;
 
-            string description = BuildDescription(paths);
-
-            // Fire-and-forget: OnWillSaveAssets must return synchronously with the paths to save,
-            // so we don't await the snapshot here. This is a best-effort safety checkpoint, not a
-            // guarantee ordered against the save that follows it.
+            // Fire-and-forget: OnWillSaveAssets has to return synchronously with the paths to
+            // save, so we don't wait on the snapshot here.
             _ = FxvRunner.SnapshotAsync(description);
         }
 
         private static string BuildDescription(string[] paths)
         {
-            if (paths.Length == 1)
+            foreach (string path in paths)
             {
-                string path = paths[0];
-                string fileName = System.IO.Path.GetFileName(path);
-                string extension = System.IO.Path.GetExtension(path).ToLowerInvariant();
-
+                string extension = Path.GetExtension(path).ToLowerInvariant();
                 if (extension == ".prefab")
                 {
-                    return $"Auto-snapshot before prefab save ({fileName})";
+                    return $"Auto-snapshot before prefab save ({Path.GetFileName(path)})";
                 }
-                if (extension == ".unity")
+
+                if (extension == ".asset" && AssetDatabase.LoadMainAssetAtPath(path) is TerrainData)
                 {
-                    return $"Auto-snapshot before scene save ({fileName})";
+                    return $"Auto-snapshot before terrain data save ({Path.GetFileName(path)})";
                 }
-                return $"Auto-snapshot before asset save ({fileName})";
             }
 
-            return $"Auto-snapshot before saving {paths.Length} assets";
+            bool isSceneSave = false;
+            foreach (string path in paths)
+            {
+                if (Path.GetExtension(path).ToLowerInvariant() == ".unity")
+                {
+                    isSceneSave = true;
+                    break;
+                }
+            }
+
+            if (isSceneSave)
+            {
+                if (s_pendingDestroyedCount > 0)
+                {
+                    return $"Auto-snapshot before scene save (deleted {s_pendingDestroyedCount} objects)";
+                }
+                if (s_pendingRestructuredCount > 0)
+                {
+                    return $"Auto-snapshot before scene save (restructured {s_pendingRestructuredCount} objects)";
+                }
+            }
+
+            return null;
         }
     }
 }
