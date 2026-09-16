@@ -10,9 +10,10 @@ namespace FlexVault.VCS.Editor.Hooks
 {
     /// <summary>
     /// Fires a best-effort local "fxv snapshot" around specific high-entropy editor operations,
-    /// not on every save. A single-object tweak followed by Ctrl+S doesn't get one; a prefab
-    /// apply, a terrain save, a scene save after a bulk delete/reparent, a prefab unpack, or a
-    /// large asset reimport does.
+    /// not on every save. A single-object tweak followed by Ctrl+S doesn't get one; a terrain
+    /// save, a scene save after a bulk delete/reparent, a prefab unpack, or a large asset
+    /// reimport does. Ordinary prefab saves are deliberately not snapshotted - they happen too
+    /// often (e.g. repeatedly while editing in Prefab Mode) to be a useful checkpoint signal.
     /// </summary>
     [InitializeOnLoad]
     public class FlexVaultAutoSnapshot : AssetModificationProcessor
@@ -196,11 +197,6 @@ namespace FlexVault.VCS.Editor.Hooks
             foreach (string path in paths)
             {
                 string extension = Path.GetExtension(path).ToLowerInvariant();
-                if (extension == ".prefab")
-                {
-                    return $"Auto-snapshot before prefab save ({Path.GetFileName(path)})";
-                }
-
                 if (extension == ".asset" && AssetDatabase.LoadMainAssetAtPath(path) is TerrainData)
                 {
                     return $"Auto-snapshot before terrain data save ({Path.GetFileName(path)})";
