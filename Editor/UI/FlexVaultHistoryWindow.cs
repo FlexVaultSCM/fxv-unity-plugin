@@ -257,14 +257,6 @@ namespace FlexVault.VCS.Editor.UI
 
                     GUILayout.FlexibleSpace();
 
-                    if (isCurrent)
-                    {
-                        Color prevCol2 = GUI.contentColor;
-                        GUI.contentColor = EditorGUIUtility.isProSkin ? new Color(0.3f, 1f, 0.5f) : new Color(0.1f, 0.6f, 0.2f);
-                        GUILayout.Label("● Current", EditorStyles.boldLabel, GUILayout.Width(72));
-                        GUI.contentColor = prevCol2;
-                    }
-
                     if (!string.IsNullOrEmpty(m_filterPath))
                     {
                         if (!isCurrent && GUILayout.Button("Diff vs Current", EditorStyles.miniButton, GUILayout.Width(95)))
