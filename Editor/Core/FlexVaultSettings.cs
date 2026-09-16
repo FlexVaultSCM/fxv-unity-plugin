@@ -146,6 +146,19 @@ namespace FlexVault.VCS.Editor.Core
             set => EditorPrefs.SetBool(IntegrationEnabledPrefKey, value);
         }
 
+        private const string PeriodicSnapshotIntervalPrefKey = "FlexVault_PeriodicSnapshotIntervalSeconds";
+        public const int DefaultPeriodicSnapshotIntervalSeconds = 300;
+
+        /// <summary>
+        /// How long the workspace can sit with pending changes and no snapshot before an automatic
+        /// one is taken. Zero or negative disables the periodic snapshot entirely.
+        /// </summary>
+        public static int PeriodicSnapshotIntervalSeconds
+        {
+            get => EditorPrefs.GetInt(PeriodicSnapshotIntervalPrefKey, DefaultPeriodicSnapshotIntervalSeconds);
+            set => EditorPrefs.SetInt(PeriodicSnapshotIntervalPrefKey, value);
+        }
+
         public static bool IsInFlexVaultRepository()
         {
             string root = GetRepositoryRoot();
@@ -218,6 +231,22 @@ namespace FlexVault.VCS.Editor.Core
             bool isRepo = FlexVaultSettings.IsInFlexVaultRepository();
             EditorGUILayout.LabelField("Repository Root:", repoRoot ?? "Unknown", EditorStyles.wordWrappedLabel);
             EditorGUILayout.LabelField("Repository Detected:", isRepo ? "Yes (.fxv_workspace present)" : "No (.fxv_workspace not found)");
+
+            GUILayout.Space(15f);
+            EditorGUILayout.LabelField("Automatic Snapshots", EditorStyles.boldLabel);
+            GUILayout.Space(5f);
+
+            EditorGUI.BeginChangeCheck();
+            int newInterval = EditorGUILayout.IntField("Periodic Snapshot Interval (seconds)", FlexVaultSettings.PeriodicSnapshotIntervalSeconds);
+            if (EditorGUI.EndChangeCheck())
+            {
+                FlexVaultSettings.PeriodicSnapshotIntervalSeconds = newInterval;
+            }
+            EditorGUILayout.LabelField(
+                FlexVaultSettings.PeriodicSnapshotIntervalSeconds > 0
+                    ? "A snapshot is taken automatically if pending changes have gone this long without one. Set to 0 to disable."
+                    : "Periodic snapshots are disabled.",
+                EditorStyles.wordWrappedMiniLabel);
 
             GUILayout.Space(10f);
 

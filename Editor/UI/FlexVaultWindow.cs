@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using FlexVault.VCS.Editor.Core;
+using FlexVault.VCS.Editor.Hooks;
 using UnityEditor;
 using UnityEngine;
 
@@ -15,19 +16,10 @@ namespace FlexVault.VCS.Editor.UI
             History
         }
 
-        private enum ChangesViewMode
-        {
-            WorkspaceChanges,
-            UnpublishedDrafts,
-            AllChanges
-        }
-
         private Tab m_currentTab = Tab.Changes;
-        private ChangesViewMode m_changesViewMode = ChangesViewMode.AllChanges;
         private Vector2 m_scrollPos;
         private Vector2 m_historyScrollPos;
         private string m_commitDescription = string.Empty;
-        private readonly HashSet<string> m_selectedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private List<CommitRefJson> m_historyEntries = new List<CommitRefJson>();
         private readonly HashSet<string> m_expandedRevisions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, ChangeInfoPayload> m_changeInfoCache = new Dictionary<string, ChangeInfoPayload>(StringComparer.OrdinalIgnoreCase);
@@ -107,21 +99,8 @@ namespace FlexVault.VCS.Editor.UI
 
         private void DrawBottomStatusBar()
         {
-            var status = FlexVaultStateCache.LatestStatus;
-            var syncStatus = status?.SyncStatus;
-
-            string syncedRevText = syncStatus?.SyncedRevision != null
-                ? (status.CurrentBranch != null ? $"{status.CurrentBranch}.{syncStatus.SyncedRevision.Value}" : syncStatus.SyncedRevision.Value.ToString())
-                : (status?.HeadCommit?.LocalSnapshot != null ? status.HeadCommit.LocalSnapshot.RevisionDisplay : "None");
-
             EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
             {
-                string syncIcon = (syncStatus != null && !syncStatus.UpToDate && syncStatus.RevisionsBehind > 0) ? "▼" : "✓";
-                string statusText = (syncStatus != null && !syncStatus.UpToDate && syncStatus.RevisionsBehind > 0)
-                    ? $"{syncIcon} Synced: {syncedRevText} ({syncStatus.RevisionsBehind} behind remote HEAD {syncStatus.PublishedHeadRevision})"
-                    : $"{syncIcon} Synced: {syncedRevText}";
-
-                GUILayout.Label(statusText, EditorStyles.miniLabel);
                 GUILayout.FlexibleSpace();
 
                 if (FlexVaultStateCache.IsRefreshing)
@@ -202,32 +181,36 @@ namespace FlexVault.VCS.Editor.UI
                 ? (status.CurrentBranch != null ? $"{status.CurrentBranch}.{syncStatus.SyncedRevision.Value}" : syncStatus.SyncedRevision.Value.ToString())
                 : (status?.HeadCommit?.LocalSnapshot != null ? status.HeadCommit.LocalSnapshot.RevisionDisplay : "None");
 
-            EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
+            bool isBehind = syncStatus != null && !syncStatus.UpToDate && syncStatus.RevisionsBehind > 0;
+            string syncIcon = isBehind ? "▼" : "✓";
+            string syncedText = isBehind
+                ? $"{syncIcon} Synced: {syncedRevText} ({syncStatus.RevisionsBehind} behind)"
+                : $"{syncIcon} Synced: {syncedRevText}";
+
+            var branchStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 13 };
+            var syncedStyle = new GUIStyle(EditorStyles.label) { fontSize = 12 };
+            var userStyle = new GUIStyle(EditorStyles.label) { fontSize = 12 };
+
+            EditorGUILayout.BeginHorizontal(EditorStyles.toolbar, GUILayout.Height(24));
             {
-                GUILayout.Label($"Branch: {branch}", EditorStyles.boldLabel);
-                GUILayout.Label($"Synced: {syncedRevText}", EditorStyles.miniLabel);
+                GUILayout.Label($"Branch: {branch}", branchStyle, GUILayout.ExpandWidth(false));
+                GUILayout.Space(14f);
+                GUILayout.Label(syncedText, syncedStyle, GUILayout.ExpandWidth(false));
+                GUILayout.Space(10f);
 
                 if (GUILayout.Button("Go To...", EditorStyles.toolbarDropDown, GUILayout.Width(70)))
                 {
                     PromptGotoRevision();
                 }
 
-                string syncLabel = "Sync Latest";
-                int syncWidth = 85;
-                if (syncStatus != null && !syncStatus.UpToDate && syncStatus.RevisionsBehind > 0)
-                {
-                    syncLabel = $"Sync Latest ({syncStatus.RevisionsBehind} behind)";
-                    syncWidth = 145;
-                }
-
                 GUI.enabled = !FlexVaultStateCache.IsRefreshing && !m_isOperating;
-                if (GUILayout.Button(syncLabel, EditorStyles.toolbarButton, GUILayout.Width(syncWidth)))
+                if (GUILayout.Button("Sync Latest", EditorStyles.toolbarButton, GUILayout.Width(85)))
                 {
                     SyncWorkspace();
                 }
 
                 GUILayout.FlexibleSpace();
-                GUILayout.Label($"User: {user}", EditorStyles.miniLabel);
+                GUILayout.Label($"User: {user}", userStyle);
 
                 GUI.enabled = !FlexVaultStateCache.IsRefreshing;
                 if (GUILayout.Button("Refresh", EditorStyles.toolbarButton, GUILayout.Width(60)))
@@ -241,8 +224,8 @@ namespace FlexVault.VCS.Editor.UI
 
         private void DrawTabBar()
         {
-            int workspaceCount = FlexVaultStateCache.GetWorkspaceChanges().Count;
-            string changesTitle = workspaceCount > 0 ? $"Changes ({workspaceCount})" : "Changes";
+            int changedCount = FlexVaultStateCache.GetChangedFiles().Count;
+            string changesTitle = changedCount > 0 ? $"Changes ({changedCount})" : "Changes";
 
             string[] tabLabels = new[] { changesTitle, "History" };
 
@@ -279,62 +262,16 @@ namespace FlexVault.VCS.Editor.UI
                 GUILayout.Space(4f);
             }
 
-            var workspaceChanges = FlexVaultStateCache.GetWorkspaceChanges();
-            var unpublishedChanges = FlexVaultStateCache.GetUnpublishedChanges();
-            var allChanges = FlexVaultStateCache.GetChangedFiles();
-
-            // View selector toolbar
-            EditorGUILayout.BeginHorizontal();
-            {
-                EditorGUILayout.LabelField("View:", GUILayout.Width(38));
-                string[] viewLabels = new[]
-                {
-                    $"Pending Changes ({workspaceChanges.Count})",
-                    $"Unpublished Draft ({unpublishedChanges.Count})",
-                    $"All ({allChanges.Count})"
-                };
-                m_changesViewMode = (ChangesViewMode)GUILayout.Toolbar((int)m_changesViewMode, viewLabels);
-            }
-            EditorGUILayout.EndHorizontal();
-            GUILayout.Space(6f);
-
-            List<FileStatusItem> displayFiles;
-            switch (m_changesViewMode)
-            {
-                case ChangesViewMode.WorkspaceChanges:
-                    displayFiles = workspaceChanges;
-                    break;
-                case ChangesViewMode.UnpublishedDrafts:
-                    displayFiles = unpublishedChanges;
-                    break;
-                default:
-                    displayFiles = allChanges;
-                    break;
-            }
+            var displayFiles = FlexVaultStateCache.GetChangedFiles();
 
             if (displayFiles.Count == 0)
             {
                 GUILayout.Space(15f);
-                string msg;
-                switch (m_changesViewMode)
-                {
-                    case ChangesViewMode.WorkspaceChanges:
-                        msg = unpublishedChanges.Count > 0
-                            ? $"Working tree is clean. All local modifications are saved in snapshots ({unpublishedChanges.Count} draft file(s) awaiting remote publish)."
-                            : "Working tree is clean. No pending workspace changes.";
-                        break;
-                    case ChangesViewMode.UnpublishedDrafts:
-                        msg = "All draft revisions have been published to the remote store.";
-                        break;
-                    default:
-                        msg = "Working tree is clean. No pending or unpublished changes.";
-                        break;
-                }
-                EditorGUILayout.HelpBox(msg, MessageType.Info);
+                EditorGUILayout.HelpBox("Working tree is clean. No pending or unpublished changes.", MessageType.Info);
             }
 
             int conflictCount = 0;
-            foreach (var f in allChanges)
+            foreach (var f in displayFiles)
             {
                 if (f.EffectiveState.Equals("conflicted", StringComparison.OrdinalIgnoreCase)) conflictCount++;
             }
@@ -363,62 +300,18 @@ namespace FlexVault.VCS.Editor.UI
 
             if (displayFiles.Count > 0)
             {
-                EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
-                {
-                    if (GUILayout.Button("Select All", EditorStyles.toolbarButton, GUILayout.Width(70)))
-                    {
-                        foreach (var f in displayFiles)
-                        {
-                            m_selectedPaths.Add(f.Path);
-                        }
-                    }
-                    if (GUILayout.Button("Select None", EditorStyles.toolbarButton, GUILayout.Width(75)))
-                    {
-                        m_selectedPaths.Clear();
-                    }
-
-                    GUILayout.FlexibleSpace();
-
-                    GUI.enabled = m_selectedPaths.Count == 1 && !m_isOperating;
-                    if (GUILayout.Button("Diff Selected", EditorStyles.toolbarButton))
-                    {
-                        DiffSingleSelectedFile();
-                    }
-                    GUI.enabled = true;
-
-                    GUI.enabled = m_selectedPaths.Count > 0 && !m_isOperating;
-                    if (GUILayout.Button($"Revert Selected ({m_selectedPaths.Count})", EditorStyles.toolbarButton))
-                    {
-                        RevertSelectedFiles();
-                    }
-                    GUI.enabled = true;
-                }
-                EditorGUILayout.EndHorizontal();
-
                 m_scrollPos = EditorGUILayout.BeginScrollView(m_scrollPos, GUILayout.ExpandHeight(true));
                 {
                     foreach (var item in displayFiles)
                     {
                         EditorGUILayout.BeginHorizontal();
                         {
-                            bool isSelected = m_selectedPaths.Contains(item.Path);
-                            bool newSelected = EditorGUILayout.Toggle(isSelected, GUILayout.Width(20));
-                            if (newSelected != isSelected)
-                            {
-                                if (newSelected) m_selectedPaths.Add(item.Path);
-                                else m_selectedPaths.Remove(item.Path);
-                            }
-
-                            string displayState = m_changesViewMode == ChangesViewMode.WorkspaceChanges
-                                ? item.EffectiveWorkspaceState
-                                : item.EffectiveState;
-
-                            DrawStateBadge(displayState);
+                            DrawStateBadge(item.EffectiveState);
 
                             var pathContent = item.ConflictState != null
                                 ? new GUIContent(item.Path, item.ConflictState.Description)
                                 : new GUIContent(item.Path);
-                            if (GUILayout.Button(pathContent, EditorStyles.linkLabel))
+                            if (GUILayout.Button(pathContent, EditorStyles.linkLabel, GUILayout.ExpandWidth(true)))
                             {
                                 FlexVaultMetaHelper.PingAsset(item.Path);
                             }
@@ -435,6 +328,13 @@ namespace FlexVault.VCS.Editor.UI
                                     ResolveConflicts(FxvRunner.ResolveAction.Theirs, new[] { item.Path });
                                 }
                             }
+
+                            GUI.enabled = !m_isOperating;
+                            if (GUILayout.Button("Revert", EditorStyles.miniButton, GUILayout.Width(45)))
+                            {
+                                RevertFile(item.Path);
+                            }
+                            GUI.enabled = true;
 
                             if (GUILayout.Button("Diff", EditorStyles.miniButton, GUILayout.Width(45)))
                             {
@@ -478,13 +378,7 @@ namespace FlexVault.VCS.Editor.UI
             GUILayout.Space(3f);
             EditorGUILayout.BeginHorizontal();
             {
-                GUI.enabled = !m_isOperating && workspaceChanges.Count > 0;
-                if (GUILayout.Button("Create Local Snapshot", GUILayout.Height(32)))
-                {
-                    CreateLocalSnapshot();
-                }
-
-                GUI.enabled = !m_isOperating && (workspaceChanges.Count > 0 || unpublishedChanges.Count > 0) && !string.IsNullOrWhiteSpace(m_commitDescription);
+                GUI.enabled = !m_isOperating && displayFiles.Count > 0 && !string.IsNullOrWhiteSpace(m_commitDescription);
                 string publishButtonLabel = isBehindRemote ? "Sync & Publish" : "Publish to Remote";
                 if (GUILayout.Button(publishButtonLabel, GUILayout.Height(32)))
                 {
@@ -494,7 +388,7 @@ namespace FlexVault.VCS.Editor.UI
             }
             EditorGUILayout.EndHorizontal();
             GUILayout.Space(2f);
-            EditorGUILayout.LabelField("Note: Local snapshots capture all pending workspace changes.", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField("Note: Changes are snapshotted automatically and published together.", EditorStyles.miniLabel);
             GUILayout.Space(5f);
         }
 
@@ -532,44 +426,6 @@ namespace FlexVault.VCS.Editor.UI
             GUI.contentColor = color;
             GUILayout.Label(text, EditorStyles.miniBoldLabel, GUILayout.Width(80));
             GUI.contentColor = prevCol;
-        }
-
-        private async void CreateLocalSnapshot()
-        {
-            if (!FlexVaultSafetyGuards.EnsureSafeToMutateWorkspace("Snapshot", promptSaveDirtyScenes: true)) return;
-
-            string desc = string.IsNullOrWhiteSpace(m_commitDescription)
-                ? $"Snapshot taken at {DateTime.Now:yyyy-MM-dd HH:mm:ss}"
-                : m_commitDescription.Trim();
-
-            m_isOperating = true;
-            EditorApplication.LockReloadAssemblies();
-
-            try
-            {
-                EditorUtility.DisplayProgressBar("FlexVault", "Creating local draft snapshot...", 0.5f);
-                var snapResult = await FxvRunner.SnapshotAsync(desc);
-                if (!snapResult.Success)
-                {
-                    EditorUtility.DisplayDialog("Snapshot Failed", snapResult.ErrorMessage, "OK");
-                    return;
-                }
-
-                m_commitDescription = string.Empty;
-                m_selectedPaths.Clear();
-                Debug.Log($"[FlexVault] Local draft snapshot created: {desc}");
-            }
-            catch (Exception ex)
-            {
-                EditorUtility.DisplayDialog("Snapshot Error", ex.Message, "OK");
-            }
-            finally
-            {
-                EditorUtility.ClearProgressBar();
-                EditorApplication.UnlockReloadAssemblies();
-                m_isOperating = false;
-                FlexVaultStateCache.RefreshAsync();
-            }
         }
 
         private async void PublishChanges()
@@ -627,6 +483,7 @@ namespace FlexVault.VCS.Editor.UI
                     EditorUtility.DisplayDialog("Snapshot Failed", snapResult.ErrorMessage, "OK");
                     return;
                 }
+                FlexVaultAutoSnapshot.NotifySnapshotOccurred();
 
                 if (isBehind)
                 {
@@ -688,7 +545,6 @@ namespace FlexVault.VCS.Editor.UI
                 }
 
                 m_commitDescription = string.Empty;
-                m_selectedPaths.Clear();
                 ShowNotification(new GUIContent("Workspace changes were published successfully."));
                 Debug.Log("[FlexVault] Workspace changes were published successfully.");
             }
@@ -706,16 +562,11 @@ namespace FlexVault.VCS.Editor.UI
             }
         }
 
-        private async void RevertSelectedFiles()
+        private async void RevertFile(string path)
         {
-            if (m_selectedPaths.Count == 0)
-            {
-                return;
-            }
-
             if (!EditorUtility.DisplayDialog(
                 "Confirm Revert",
-                $"Revert {m_selectedPaths.Count} selected file(s) and their companion .meta files to published base?\nAll working tree changes to these files will be lost.",
+                $"Revert '{path}' and its companion .meta file to published base?\nAll working tree changes to this file will be lost.",
                 "Revert",
                 "Cancel"))
             {
@@ -724,22 +575,18 @@ namespace FlexVault.VCS.Editor.UI
 
             if (!FlexVaultSafetyGuards.EnsureSafeToMutateWorkspace("Revert", promptSaveDirtyScenes: true)) return;
 
-            var repoRelative = FlexVaultMetaHelper.ExpandWithMeta(m_selectedPaths);
+            var repoRelative = FlexVaultMetaHelper.ExpandWithMeta(new[] { path });
 
             m_isOperating = true;
             EditorApplication.LockReloadAssemblies();
 
             try
             {
-                EditorUtility.DisplayProgressBar("FlexVault", "Reverting files...", 0.5f);
+                EditorUtility.DisplayProgressBar("FlexVault", "Reverting file...", 0.5f);
                 var result = await FxvRunner.RevertAsync(repoRelative);
                 if (!result.Success)
                 {
                     EditorUtility.DisplayDialog("Revert Failed", result.ErrorMessage, "OK");
-                }
-                else
-                {
-                    m_selectedPaths.Clear();
                 }
             }
             catch (Exception ex)
@@ -844,16 +691,6 @@ namespace FlexVault.VCS.Editor.UI
                 EditorApplication.UnlockReloadAssemblies();
                 m_isOperating = false;
                 FlexVaultStateCache.RefreshAsync();
-            }
-        }
-
-        private void DiffSingleSelectedFile()
-        {
-            if (m_selectedPaths.Count != 1) return;
-            foreach (var p in m_selectedPaths)
-            {
-                _ = FlexVaultDiffHelper.DiffFileAgainstBaseAsync(p);
-                break;
             }
         }
 
