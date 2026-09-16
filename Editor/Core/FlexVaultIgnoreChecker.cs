@@ -22,13 +22,18 @@ namespace FlexVault.VCS.Editor.Core
 
         public static void CheckAndPromptOnStartup()
         {
+            // DisplayDialog hangs an unattended editor run.
+            if (Application.isBatchMode) return;
+
             string repoRoot = FlexVaultSettings.GetRepositoryRoot();
             if (string.IsNullOrEmpty(repoRoot)) return;
 
             var missing = GetMissingEntries(repoRoot);
             if (missing.Count == 0) return;
 
-            string dismissedKey = DismissedPrefKeyPrefix + repoRoot.GetHashCode();
+            // Keyed on repoRoot, not GetHashCode(); .NET randomizes that per process, which would
+            // drop dismissals on every restart.
+            string dismissedKey = DismissedPrefKeyPrefix + repoRoot;
             var dismissed = new HashSet<string>(
                 EditorPrefs.GetString(dismissedKey, string.Empty).Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries),
                 StringComparer.OrdinalIgnoreCase);
@@ -66,12 +71,18 @@ namespace FlexVault.VCS.Editor.Core
                     string trimmed = line.Trim();
                     if (trimmed.Length > 0 && !trimmed.StartsWith("#"))
                     {
-                        existing.Add(trimmed);
+                        existing.Add(NormalizeEntry(trimmed));
                     }
                 }
             }
 
-            return DefaultIgnores.Where(p => !existing.Contains(p)).ToList();
+            return DefaultIgnores.Where(p => !existing.Contains(NormalizeEntry(p))).ToList();
+        }
+
+        // "Library", "Library/", "Library/*" all normalize to "Library".
+        private static string NormalizeEntry(string entry)
+        {
+            return entry.TrimEnd('/').TrimEnd('*').TrimEnd('/');
         }
     }
 }
