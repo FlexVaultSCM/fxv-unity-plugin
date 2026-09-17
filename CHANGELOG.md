@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.5.0...v0.5.1) (2026-09-17)
+
+
+### Bug Fixes
+
+* support Unity 6.6 EntityId deprecation in auto-snapshot ([#17](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/17)) ([32c53fa](https://github.com/FlexVaultSCM/fxv-unity-plugin/commit/32c53fa9dfed7323839b93988874916af5e7a0a0))
+
 ## [0.5.0](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.4.0...v0.5.0) (2026-09-16)
 
 
