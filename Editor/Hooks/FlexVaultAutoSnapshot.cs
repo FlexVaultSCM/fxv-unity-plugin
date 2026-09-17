@@ -180,26 +180,31 @@ namespace FlexVault.VCS.Editor.Hooks
 
         private static System.Func<ChangeGameObjectStructureHierarchyEventArgs, EntityId> CreateStructureChangeEntityIdAccessor()
         {
-            var structType = typeof(ChangeGameObjectStructureHierarchyEventArgs);
-            var entityIdProp = structType.GetProperty("entityId");
-            if (entityIdProp != null)
+            try
             {
+                var structType = typeof(ChangeGameObjectStructureHierarchyEventArgs);
                 var param = System.Linq.Expressions.Expression.Parameter(structType, "e");
-                var propAccess = System.Linq.Expressions.Expression.Property(param, entityIdProp);
-                return System.Linq.Expressions.Expression.Lambda<System.Func<ChangeGameObjectStructureHierarchyEventArgs, EntityId>>(propAccess, param).Compile();
-            }
 
-            var instanceIdProp = structType.GetProperty("instanceId");
-            if (instanceIdProp != null)
-            {
-                var param = System.Linq.Expressions.Expression.Parameter(structType, "e");
-                var propAccess = System.Linq.Expressions.Expression.Property(param, instanceIdProp);
-                var fromMethod = typeof(EntityId).GetMethod("From", new[] { typeof(int) });
-                if (fromMethod != null)
+                // Unity 6.6+: entityId property or field exists directly
+                if (structType.GetProperty("entityId") != null || structType.GetField("entityId") != null)
                 {
-                    var callFrom = System.Linq.Expressions.Expression.Call(fromMethod, propAccess);
-                    return System.Linq.Expressions.Expression.Lambda<System.Func<ChangeGameObjectStructureHierarchyEventArgs, EntityId>>(callFrom, param).Compile();
+                    var access = System.Linq.Expressions.Expression.PropertyOrField(param, "entityId");
+                    return System.Linq.Expressions.Expression.Lambda<System.Func<ChangeGameObjectStructureHierarchyEventArgs, EntityId>>(access, param).Compile();
                 }
+
+                // Unity 6.0 - 6.5: convert instanceId (int) to EntityId via user-defined implicit conversion
+                if (structType.GetProperty("instanceId") != null || structType.GetField("instanceId") != null)
+                {
+                    var access = System.Linq.Expressions.Expression.PropertyOrField(param, "instanceId");
+                    var conv = System.Linq.Expressions.Expression.Convert(access, typeof(EntityId));
+                    return System.Linq.Expressions.Expression.Lambda<System.Func<ChangeGameObjectStructureHierarchyEventArgs, EntityId>>(conv, param).Compile();
+                }
+
+                Debug.LogError("[FlexVault] Unable to bind entityId or instanceId on ChangeGameObjectStructureHierarchyEventArgs. Prefab unpack snapshots may not trigger.");
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[FlexVault] Error creating structure change accessor: {ex.Message}");
             }
 
             return _ => EntityId.None;
@@ -207,7 +212,7 @@ namespace FlexVault.VCS.Editor.Hooks
 
         private static void CheckForPrefabUnpack(EntityId entityId, ref List<GameObject> unpackedRoots)
         {
-            if (!s_knownPrefabInstanceRootIds.Contains(entityId))
+            if (entityId == EntityId.None || !s_knownPrefabInstanceRootIds.Contains(entityId))
             {
                 return;
             }
