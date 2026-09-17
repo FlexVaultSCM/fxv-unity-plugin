@@ -397,6 +397,10 @@ namespace FlexVault.VCS.Editor.Core
                     UnityEngine.Debug.LogWarning($"[FlexVault] State cache refresh failed: {result.ErrorMessage}");
                 }
             }
+            catch (OperationCanceledException)
+            {
+                // fxv was killed because a domain reload started mid-refresh; nothing to report.
+            }
             catch (Exception ex)
             {
                 UnityEngine.Debug.LogError($"[FlexVault] Error updating state cache: {ex.Message}");

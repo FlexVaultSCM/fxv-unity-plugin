@@ -179,11 +179,6 @@ namespace FlexVault.VCS.Editor.Core
 
         private static string s_pluginVersion;
 
-        public static void ResetPluginVersion()
-        {
-            s_pluginVersion = null;
-        }
-
         public static string ResolvePluginVersion()
         {
             try
