@@ -38,3 +38,4 @@ ehthumbs.db
 
 # FlexVault / Local temporary files
 .fxv_workspace/
+.fxv/
