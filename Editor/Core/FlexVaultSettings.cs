@@ -400,24 +400,4 @@ namespace FlexVault.VCS.Editor.Core
         }
     }
 
-    public class FlexVaultSettingsProvider : SettingsProvider
-    {
-        private readonly FlexVaultSettingsUIState m_uiState = new FlexVaultSettingsUIState();
-
-        public FlexVaultSettingsProvider(string path, SettingsScope scope) : base(path, scope) { }
-
-        [SettingsProvider]
-        public static SettingsProvider CreateSettingsProvider()
-        {
-            return new FlexVaultSettingsProvider("Project/Version Control/FlexVault", SettingsScope.Project)
-            {
-                keywords = new[] { "FlexVault", "VCS", "SCM", "Source Control", "fxv" }
-            };
-        }
-
-        public override void OnGUI(string searchContext)
-        {
-            FlexVaultSettingsDrawer.DrawSettings(m_uiState, SettingsService.NotifySettingsProviderChanged);
-        }
-    }
 }

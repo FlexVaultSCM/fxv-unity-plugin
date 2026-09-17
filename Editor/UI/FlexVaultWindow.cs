@@ -121,7 +121,7 @@ namespace FlexVault.VCS.Editor.UI
             GUILayout.Space(10f);
             if (GUILayout.Button("Open FlexVault Settings", GUILayout.Height(30)))
             {
-                SettingsService.OpenProjectSettings("Project/Version Control/FlexVault");
+                SettingsService.OpenProjectSettings("Project/Version Control");
             }
             GUILayout.Space(5f);
             if (GUILayout.Button("Retry Repository Detection", GUILayout.Height(25)))
@@ -141,7 +141,7 @@ namespace FlexVault.VCS.Editor.UI
             {
                 if (GUILayout.Button("Open FlexVault Settings...", EditorStyles.miniButton, GUILayout.Width(180)))
                 {
-                    SettingsService.OpenProjectSettings("Project/Version Control/FlexVault");
+                    SettingsService.OpenProjectSettings("Project/Version Control");
                 }
 
                 if (GUILayout.Button("Retry Version Check", EditorStyles.miniButton, GUILayout.Width(150)))
