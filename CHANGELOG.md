@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.5.1...v0.5.2) (2026-09-17)
+
+
+### Bug Fixes
+
+* trigger release-please version bump ([#21](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/21)) ([a356cf2](https://github.com/FlexVaultSCM/fxv-unity-plugin/commit/a356cf2390dd69b474f3a6a2bc7da0fb90811680))
+
 ## [0.5.1](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.5.0...v0.5.1) (2026-09-17)
 
 
