@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using UnityEditor;
 using UnityEngine;
 
 namespace FlexVault.VCS.Editor.Core
@@ -23,6 +24,19 @@ namespace FlexVault.VCS.Editor.Core
     public static class FxvRunner
     {
         private static readonly SemaphoreSlim s_processSemaphore = new SemaphoreSlim(1, 1);
+
+        // A running fxv process (and the background thread waiting on it) is invisible to Unity's
+        // domain reload - it doesn't know to wait for or cancel it. If a snapshot/status call is
+        // still in flight when the user enters Play Mode or scripts recompile, the reload can stall
+        // indefinitely waiting on a thread that has no reason to exit. Cancel everything in flight
+        // the moment a reload is about to happen so the child process gets killed and the semaphore
+        // released well before "Begin MonoManager ReloadAssembly".
+        private static readonly CancellationTokenSource s_reloadImminentCts = new CancellationTokenSource();
+
+        static FxvRunner()
+        {
+            AssemblyReloadEvents.beforeAssemblyReload += () => s_reloadImminentCts.Cancel();
+        }
 
         public static async Task<bool> EnsureVersionCheckedAsync(string customBinaryPath = null)
         {
@@ -54,7 +68,15 @@ namespace FlexVault.VCS.Editor.Core
                 {
                     if (process != null)
                     {
-                        string stdout = await process.StandardOutput.ReadToEndAsync();
+                        Task<string> readTask = process.StandardOutput.ReadToEndAsync();
+                        using (s_reloadImminentCts.Token.Register(() => { try { process.Kill(); } catch { /* Ignore if already exited */ } }))
+                        {
+                            if (await Task.WhenAny(readTask, Task.Delay(-1, s_reloadImminentCts.Token)) != readTask)
+                            {
+                                return false;
+                            }
+                        }
+                        string stdout = await readTask;
                         await Task.Run(() => process.WaitForExit(5000));
                         if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(stdout))
                         {
@@ -88,6 +110,9 @@ namespace FlexVault.VCS.Editor.Core
                 result.ErrorMessage = FlexVaultVersionGuard.LastErrorMessage ?? "Incompatible FlexVault CLI version.";
                 return result;
             }
+
+            using var linkedReloadCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, s_reloadImminentCts.Token);
+            cancellationToken = linkedReloadCts.Token;
 
             string binaryPath = !string.IsNullOrEmpty(customBinaryPath) ? customBinaryPath : FlexVaultSettings.GetEffectiveBinaryPath();
             string workingDir = FlexVaultSettings.GetRepositoryRoot();
@@ -282,12 +307,6 @@ namespace FlexVault.VCS.Editor.Core
             return await RunCommandAsync<StatusPayload>(args, ct);
         }
 
-        public static async Task<bool> CheckLoggedInAsync(CancellationToken ct = default)
-        {
-            var result = await GetStatusAsync(skipScan: true, ct: ct);
-            return result.Success && !string.IsNullOrEmpty(result.Data?.CurrentUser);
-        }
-
         public static async Task<FxvResult<object>> LoginAsync(string username, CancellationToken ct = default)
         {
             var args = new List<string> { "login", username };
@@ -441,6 +460,9 @@ namespace FlexVault.VCS.Editor.Core
                 UnityEngine.Debug.LogError($"[FlexVault] CatToFileAsync blocked: {FlexVaultVersionGuard.LastErrorMessage}");
                 return false;
             }
+
+            using var linkedReloadCts = CancellationTokenSource.CreateLinkedTokenSource(ct, s_reloadImminentCts.Token);
+            ct = linkedReloadCts.Token;
 
             string binaryPath = !string.IsNullOrEmpty(customBinaryPath) ? customBinaryPath : FlexVaultSettings.GetEffectiveBinaryPath();
             string workingDir = FlexVaultSettings.GetRepositoryRoot();

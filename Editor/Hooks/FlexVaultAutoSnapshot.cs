@@ -359,7 +359,22 @@ namespace FlexVault.VCS.Editor.Hooks
 
         private static async System.Threading.Tasks.Task RunAndTrackResult(string description, double triggeredAt)
         {
-            var result = await FxvRunner.SnapshotAsync(description);
+            FxvResult<object> result;
+            try
+            {
+                result = await FxvRunner.SnapshotAsync(description);
+            }
+            catch (System.OperationCanceledException)
+            {
+                // fxv was killed because a domain reload started mid-snapshot; the periodic timer
+                // will simply retry on the next tick after reload.
+                if (s_lastSnapshotTime == triggeredAt)
+                {
+                    s_lastSnapshotTime = -1;
+                }
+                return;
+            }
+
             if (!result.Success)
             {
                 Debug.LogWarning($"[FlexVault] Auto-snapshot failed: {result.ErrorMessage}");
