@@ -63,6 +63,7 @@ namespace FlexVault.VCS.Editor.Core
                     CreateNoWindow = true,
                     StandardOutputEncoding = Encoding.UTF8
                 };
+                ConfigureClientEnvironment(startInfo);
 
                 using (var process = Process.Start(startInfo))
                 {
@@ -156,6 +157,7 @@ namespace FlexVault.VCS.Editor.Core
                 StandardOutputEncoding = Encoding.UTF8,
                 StandardErrorEncoding = Encoding.UTF8
             };
+            ConfigureClientEnvironment(startInfo);
 
             await s_processSemaphore.WaitAsync(cancellationToken);
             try
@@ -492,6 +494,7 @@ namespace FlexVault.VCS.Editor.Core
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            ConfigureClientEnvironment(startInfo);
 
             await s_processSemaphore.WaitAsync(ct);
             try
@@ -648,6 +651,12 @@ namespace FlexVault.VCS.Editor.Core
                 sb.Append('"');
             }
             return sb.ToString();
+        }
+
+        private static void ConfigureClientEnvironment(ProcessStartInfo startInfo)
+        {
+            startInfo.EnvironmentVariables["FXV_CLIENT"] =
+                $"name=unity;version={FlexVaultVersionGuard.PluginVersion};max={FlexVaultVersionGuard.MaxVersion};min={FlexVaultVersionGuard.MinVersion}";
         }
     }
 }
