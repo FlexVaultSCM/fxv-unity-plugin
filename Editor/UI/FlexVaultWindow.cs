@@ -16,6 +16,10 @@ namespace FlexVault.VCS.Editor.UI
             History
         }
 
+        // A large enough paste makes EditorGUILayout.TextArea's word-wrap layout pass slow enough
+        // per-frame to freeze the editor; cap input length well below that.
+        private const int MaxCommitDescriptionLength = 2000;
+
         private Tab m_currentTab = Tab.Changes;
         private Vector2 m_scrollPos;
         private Vector2 m_historyScrollPos;
@@ -198,7 +202,7 @@ namespace FlexVault.VCS.Editor.UI
                 GUILayout.Label(syncedText, syncedStyle, GUILayout.ExpandWidth(false));
                 GUILayout.Space(10f);
 
-                if (GUILayout.Button("Go To...", EditorStyles.toolbarDropDown, GUILayout.Width(70)))
+                if (GUILayout.Button("Go To...", EditorStyles.toolbarButton, GUILayout.Width(70)))
                 {
                     PromptGotoRevision();
                 }
@@ -372,8 +376,20 @@ namespace FlexVault.VCS.Editor.UI
             }
 
             GUILayout.Space(5f);
-            EditorGUILayout.LabelField("Commit Description:", EditorStyles.boldLabel);
-            m_commitDescription = EditorGUILayout.TextArea(m_commitDescription, GUILayout.Height(45));
+            EditorGUILayout.BeginHorizontal();
+            {
+                EditorGUILayout.LabelField("Commit Description:", EditorStyles.boldLabel);
+                GUILayout.FlexibleSpace();
+                GUILayout.Label($"{m_commitDescription.Length}/{MaxCommitDescriptionLength}", EditorStyles.miniLabel);
+            }
+            EditorGUILayout.EndHorizontal();
+
+            string newDescription = EditorGUILayout.TextArea(m_commitDescription, GUILayout.Height(45));
+            if (newDescription.Length > MaxCommitDescriptionLength)
+            {
+                newDescription = newDescription.Substring(0, MaxCommitDescriptionLength);
+            }
+            m_commitDescription = newDescription;
 
             GUILayout.Space(3f);
             EditorGUILayout.BeginHorizontal();
@@ -728,14 +744,6 @@ namespace FlexVault.VCS.Editor.UI
             EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
             {
                 GUILayout.Label("Recent Commits", EditorStyles.boldLabel);
-                GUILayout.FlexibleSpace();
-
-                GUI.enabled = !m_isLoadingHistory;
-                if (GUILayout.Button("Refresh", EditorStyles.toolbarButton, GUILayout.Width(65)))
-                {
-                    LoadHistoryEntries();
-                }
-                GUI.enabled = true;
             }
             EditorGUILayout.EndHorizontal();
 
@@ -751,6 +759,18 @@ namespace FlexVault.VCS.Editor.UI
                 EditorGUILayout.HelpBox("No revision history found for this branch.", MessageType.Info);
                 return;
             }
+
+            EditorGUILayout.BeginHorizontal();
+            {
+                GUILayout.Space(24f + 2f);
+                GUILayout.Label("Type", EditorStyles.miniBoldLabel, GUILayout.Width(75));
+                GUILayout.Label("Revision", EditorStyles.miniBoldLabel, GUILayout.Width(110));
+                GUILayout.Label("Author", EditorStyles.miniBoldLabel, GUILayout.Width(100));
+                GUILayout.Label("Date", EditorStyles.miniBoldLabel, GUILayout.Width(110));
+                GUILayout.FlexibleSpace();
+                GUILayout.Label("", EditorStyles.miniBoldLabel, GUILayout.Width(65));
+            }
+            EditorGUILayout.EndHorizontal();
 
             m_historyScrollPos = EditorGUILayout.BeginScrollView(m_historyScrollPos, GUILayout.ExpandHeight(true));
             {
@@ -1031,20 +1051,41 @@ namespace FlexVault.VCS.Editor.UI
 
     public class EditorInputDialog : EditorWindow
     {
+        // Keyed by title so repeatedly clicking the button that opens one (e.g. "Go To...") just
+        // refocuses the existing dialog instead of stacking up duplicates.
+        private static readonly Dictionary<string, EditorInputDialog> s_openDialogs = new Dictionary<string, EditorInputDialog>();
+
+        private string m_title;
         private string m_prompt;
         private string m_inputText;
         private Action<string> m_onConfirm;
 
         public static void Show(string title, string prompt, string defaultText, Action<string> onConfirm)
         {
+            if (s_openDialogs.TryGetValue(title, out var existing) && existing != null)
+            {
+                existing.Focus();
+                return;
+            }
+
             var window = CreateInstance<EditorInputDialog>();
             window.titleContent = new GUIContent(title);
+            window.m_title = title;
             window.m_prompt = prompt;
             window.m_inputText = defaultText ?? "";
             window.minSize = new Vector2(380, 130);
             window.maxSize = new Vector2(380, 130);
             window.m_onConfirm = onConfirm;
+            s_openDialogs[title] = window;
             window.ShowUtility();
+        }
+
+        private void OnDestroy()
+        {
+            if (m_title != null && s_openDialogs.TryGetValue(m_title, out var current) && current == this)
+            {
+                s_openDialogs.Remove(m_title);
+            }
         }
 
         private void OnGUI()

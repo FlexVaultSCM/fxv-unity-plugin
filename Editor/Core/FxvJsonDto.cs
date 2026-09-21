@@ -297,7 +297,7 @@ namespace FlexVault.VCS.Editor.Core
                 {
                     return Commit.Revision.HasValue
                         ? $"{Commit.Branch}.{Commit.Revision.Value}.{Commit.DraftRevision.Value}"
-                        : $"{Commit.Branch}.-.{Commit.DraftRevision.Value}";
+                        : $"{Commit.Branch}.unpublished.{Commit.DraftRevision.Value}";
                 }
                 return Commit.Revision.HasValue ? $"{Commit.Branch}.{Commit.Revision.Value}" : Commit.Branch;
             }
