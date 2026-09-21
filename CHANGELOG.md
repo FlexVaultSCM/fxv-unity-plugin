@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.3](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.5.2...v0.5.3) (2026-09-21)
+
+
+### Bug Fixes
+
+* polish .fxvignore automation, History tab UI, and commit description input ([#24](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/24)) ([d8673be](https://github.com/FlexVaultSCM/fxv-unity-plugin/commit/d8673beba8ba87b0ea4d9f8acac6e9c9417abcea))
+
 ## [0.5.2](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.5.1...v0.5.2) (2026-09-17)
 
 
