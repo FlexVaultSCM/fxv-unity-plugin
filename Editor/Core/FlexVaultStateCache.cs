@@ -24,6 +24,12 @@ namespace FlexVault.VCS.Editor.Core
 
         static FlexVaultStateCache()
         {
+            // Must run before anything below (or in other [InitializeOnLoad] classes, e.g.
+            // FlexVaultAutoSnapshot) that could trigger an auto-snapshot - once a path is captured
+            // into a snapshot, adding it to .fxvignore no longer removes it from tracking, so the
+            // default ignores have to land first.
+            FlexVaultIgnoreChecker.EnsureDefaultIgnores();
+
             EditorApplication.delayCall += async () =>
             {
                 if (FlexVaultSettings.IsFlexVaultActive())
@@ -45,7 +51,6 @@ namespace FlexVault.VCS.Editor.Core
                     }
 
                     RefreshAsync();
-                    FlexVaultIgnoreChecker.CheckAndPromptOnStartup();
                 }
             };
         }

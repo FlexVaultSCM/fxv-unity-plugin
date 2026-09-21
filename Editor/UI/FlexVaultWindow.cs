@@ -16,11 +16,23 @@ namespace FlexVault.VCS.Editor.UI
             History
         }
 
+        private enum HistoryFilter
+        {
+            All,
+            Drafts,
+            Published
+        }
+
+        // A large enough paste makes EditorGUILayout.TextArea's word-wrap layout pass slow enough
+        // per-frame to freeze the editor; cap input length well below that.
+        private const int MaxCommitDescriptionLength = 2000;
+
         private Tab m_currentTab = Tab.Changes;
         private Vector2 m_scrollPos;
         private Vector2 m_historyScrollPos;
         private string m_commitDescription = string.Empty;
         private List<CommitRefJson> m_historyEntries = new List<CommitRefJson>();
+        private HistoryFilter m_historyFilter = HistoryFilter.All;
         private readonly HashSet<string> m_expandedRevisions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, ChangeInfoPayload> m_changeInfoCache = new Dictionary<string, ChangeInfoPayload>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> m_loadingChangeInfo = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -177,15 +189,20 @@ namespace FlexVault.VCS.Editor.UI
             string user = !string.IsNullOrEmpty(status?.CurrentUser) ? status.CurrentUser : "Logged out";
             var syncStatus = status?.SyncStatus;
 
-            string syncedRevText = syncStatus?.SyncedRevision != null
-                ? (status.CurrentBranch != null ? $"{status.CurrentBranch}.{syncStatus.SyncedRevision.Value}" : syncStatus.SyncedRevision.Value.ToString())
-                : (status?.HeadCommit?.LocalSnapshot != null ? status.HeadCommit.LocalSnapshot.RevisionDisplay : "None");
+            // Show the workspace's actual current revision (what History highlights as "Current"),
+            // not just the last revision synced from remote - those diverge whenever local drafts
+            // exist ahead of the synced baseline, and showing the synced one there read as stale.
+            string headRevText = status?.HeadCommit?.LocalSnapshot != null
+                ? status.HeadCommit.LocalSnapshot.RevisionDisplay
+                : (syncStatus?.SyncedRevision != null
+                    ? (status.CurrentBranch != null ? $"{status.CurrentBranch}.{syncStatus.SyncedRevision.Value}" : syncStatus.SyncedRevision.Value.ToString())
+                    : "None");
 
             bool isBehind = syncStatus != null && !syncStatus.UpToDate && syncStatus.RevisionsBehind > 0;
             string syncIcon = isBehind ? "▼" : "✓";
             string syncedText = isBehind
-                ? $"{syncIcon} Synced: {syncedRevText} ({syncStatus.RevisionsBehind} behind)"
-                : $"{syncIcon} Synced: {syncedRevText}";
+                ? $"{syncIcon} Head: {headRevText} ({syncStatus.RevisionsBehind} behind remote)"
+                : $"{syncIcon} Head: {headRevText}";
 
             var branchStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 13 };
             var syncedStyle = new GUIStyle(EditorStyles.label) { fontSize = 12 };
@@ -198,7 +215,7 @@ namespace FlexVault.VCS.Editor.UI
                 GUILayout.Label(syncedText, syncedStyle, GUILayout.ExpandWidth(false));
                 GUILayout.Space(10f);
 
-                if (GUILayout.Button("Go To...", EditorStyles.toolbarDropDown, GUILayout.Width(70)))
+                if (GUILayout.Button("Go To...", EditorStyles.toolbarButton, GUILayout.Width(70)))
                 {
                     PromptGotoRevision();
                 }
@@ -211,6 +228,15 @@ namespace FlexVault.VCS.Editor.UI
 
                 GUILayout.FlexibleSpace();
                 GUILayout.Label($"User: {user}", userStyle);
+
+                if (string.IsNullOrEmpty(status?.CurrentUser))
+                {
+                    GUILayout.Space(4f);
+                    if (GUILayout.Button("Log In...", EditorStyles.toolbarButton, GUILayout.Width(60)))
+                    {
+                        PromptLogin();
+                    }
+                }
 
                 GUI.enabled = !FlexVaultStateCache.IsRefreshing;
                 if (GUILayout.Button("Refresh", EditorStyles.toolbarButton, GUILayout.Width(60)))
@@ -372,19 +398,44 @@ namespace FlexVault.VCS.Editor.UI
             }
 
             GUILayout.Space(5f);
-            EditorGUILayout.LabelField("Commit Description:", EditorStyles.boldLabel);
-            m_commitDescription = EditorGUILayout.TextArea(m_commitDescription, GUILayout.Height(45));
-
-            GUILayout.Space(3f);
             EditorGUILayout.BeginHorizontal();
             {
-                GUI.enabled = !m_isOperating && displayFiles.Count > 0 && !string.IsNullOrWhiteSpace(m_commitDescription);
-                string publishButtonLabel = isBehindRemote ? "Sync & Publish" : "Publish to Remote";
-                if (GUILayout.Button(publishButtonLabel, GUILayout.Height(32)))
+                EditorGUILayout.LabelField("Commit Description:", EditorStyles.boldLabel);
+                GUILayout.FlexibleSpace();
+                GUILayout.Label($"{m_commitDescription.Length}/{MaxCommitDescriptionLength}", EditorStyles.miniLabel);
+            }
+            EditorGUILayout.EndHorizontal();
+
+            string newDescription = EditorGUILayout.TextArea(m_commitDescription, GUILayout.Height(45));
+            if (newDescription.Length > MaxCommitDescriptionLength)
+            {
+                newDescription = newDescription.Substring(0, MaxCommitDescriptionLength);
+            }
+            m_commitDescription = newDescription;
+
+            GUILayout.Space(3f);
+            bool isLoggedIn = !string.IsNullOrEmpty(FlexVaultStateCache.LatestStatus?.CurrentUser);
+            EditorGUILayout.BeginHorizontal();
+            {
+                if (!isLoggedIn)
                 {
-                    PublishChanges();
+                    GUI.enabled = !m_isOperating;
+                    if (GUILayout.Button("Log In to Publish", GUILayout.Height(32)))
+                    {
+                        PromptLogin();
+                    }
+                    GUI.enabled = true;
                 }
-                GUI.enabled = true;
+                else
+                {
+                    GUI.enabled = !m_isOperating && displayFiles.Count > 0 && !string.IsNullOrWhiteSpace(m_commitDescription);
+                    string publishButtonLabel = isBehindRemote ? "Sync & Publish" : "Publish to Remote";
+                    if (GUILayout.Button(publishButtonLabel, GUILayout.Height(32)))
+                    {
+                        PublishChanges();
+                    }
+                    GUI.enabled = true;
+                }
             }
             EditorGUILayout.EndHorizontal();
             GUILayout.Space(2f);
@@ -441,16 +492,20 @@ namespace FlexVault.VCS.Editor.UI
             var status = FlexVaultStateCache.LatestStatus;
             if (string.IsNullOrEmpty(status?.CurrentUser))
             {
-                bool proceed = EditorUtility.DisplayDialog(
+                // The Publish button is gated on login, so this is only reachable if the session
+                // expired between the last repaint and this click; send the user to log in rather
+                // than let a publish that's certain to fail run anyway.
+                bool loginNow = EditorUtility.DisplayDialog(
                     "User Identity Warning",
-                    "No logged-in FlexVault user was detected.\n'fxv publish' requires an active login.\nDo you want to proceed anyway?",
-                    "Proceed",
+                    "No logged-in FlexVault user was detected. Publishing requires an active login.",
+                    "Log In",
                     "Cancel");
 
-                if (!proceed)
+                if (loginNow)
                 {
-                    return;
+                    PromptLogin();
                 }
+                return;
             }
 
             var syncStatus = status?.SyncStatus;
@@ -536,10 +591,29 @@ namespace FlexVault.VCS.Editor.UI
                     }
                     else
                     {
-                        EditorUtility.DisplayDialog(
-                            "Publish Failed",
-                            $"Snapshot succeeded locally, but publish failed:\n\n{pubResult.ErrorMessage}\n\nYour changes remain saved as an unpublished draft.",
-                            "OK");
+                        bool isLoginError = err.IndexOf("no user is logged in", StringComparison.OrdinalIgnoreCase) >= 0
+                            || err.IndexOf("fxv login", StringComparison.OrdinalIgnoreCase) >= 0;
+
+                        if (isLoginError)
+                        {
+                            bool loginNow = EditorUtility.DisplayDialog(
+                                "Publish Failed: Not Logged In",
+                                "Snapshot succeeded locally, but publish failed because no FlexVault user is logged in.\n\nYour changes remain saved as an unpublished draft. Log in and publish again from this window.",
+                                "Log In",
+                                "Later");
+
+                            if (loginNow)
+                            {
+                                PromptLogin();
+                            }
+                        }
+                        else
+                        {
+                            EditorUtility.DisplayDialog(
+                                "Publish Failed",
+                                $"Snapshot succeeded locally, but publish failed:\n\n{pubResult.ErrorMessage}\n\nYour changes remain saved as an unpublished draft.",
+                                "OK");
+                        }
                     }
                     return;
                 }
@@ -723,19 +797,22 @@ namespace FlexVault.VCS.Editor.UI
             }
         }
 
+        private bool MatchesHistoryFilter(CommitRefJson entry)
+        {
+            if (m_historyFilter == HistoryFilter.All) return true;
+
+            bool isDraft = string.Equals(entry.Commit?.Type, "draft", StringComparison.OrdinalIgnoreCase);
+            return m_historyFilter == HistoryFilter.Drafts ? isDraft : !isDraft;
+        }
+
         private void DrawHistoryTab()
         {
             EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
             {
                 GUILayout.Label("Recent Commits", EditorStyles.boldLabel);
                 GUILayout.FlexibleSpace();
-
-                GUI.enabled = !m_isLoadingHistory;
-                if (GUILayout.Button("Refresh", EditorStyles.toolbarButton, GUILayout.Width(65)))
-                {
-                    LoadHistoryEntries();
-                }
-                GUI.enabled = true;
+                string[] filterLabels = { "All", "Drafts", "Published" };
+                m_historyFilter = (HistoryFilter)GUILayout.Toolbar((int)m_historyFilter, filterLabels, EditorStyles.toolbarButton, GUILayout.Width(180));
             }
             EditorGUILayout.EndHorizontal();
 
@@ -752,11 +829,32 @@ namespace FlexVault.VCS.Editor.UI
                 return;
             }
 
+            if (m_historyFilter != HistoryFilter.All && !m_historyEntries.Any(MatchesHistoryFilter))
+            {
+                GUILayout.Space(20f);
+                EditorGUILayout.HelpBox($"No {m_historyFilter.ToString().ToLowerInvariant()} found in the loaded history.", MessageType.Info);
+                return;
+            }
+
+            EditorGUILayout.BeginHorizontal();
+            {
+                GUILayout.Space(24f + 2f);
+                GUILayout.Label("Type", EditorStyles.miniBoldLabel, GUILayout.Width(75));
+                GUILayout.Label("Revision", EditorStyles.miniBoldLabel, GUILayout.Width(110));
+                GUILayout.Label("Author", EditorStyles.miniBoldLabel, GUILayout.Width(100));
+                GUILayout.Label("Date", EditorStyles.miniBoldLabel, GUILayout.Width(110));
+                GUILayout.FlexibleSpace();
+                GUILayout.Label("", EditorStyles.miniBoldLabel, GUILayout.Width(65));
+            }
+            EditorGUILayout.EndHorizontal();
+
             m_historyScrollPos = EditorGUILayout.BeginScrollView(m_historyScrollPos, GUILayout.ExpandHeight(true));
             {
                 for (int i = 0; i < m_historyEntries.Count; i++)
                 {
                     var entry = m_historyEntries[i];
+                    if (!MatchesHistoryFilter(entry)) continue;
+
                     bool isCurrent = FlexVaultStateCache.IsCurrentWorkspaceRevision(entry, m_historyEntries);
 
                     var prevBg = GUI.backgroundColor;
@@ -951,6 +1049,41 @@ namespace FlexVault.VCS.Editor.UI
             GUI.contentColor = prevCol;
         }
 
+        private void PromptLogin()
+        {
+            EditorInputDialog.Show("Log In to FlexVault", "Enter your FlexVault username:", "", (username) =>
+            {
+                if (!string.IsNullOrWhiteSpace(username))
+                {
+                    PerformLogin(username.Trim());
+                }
+            });
+        }
+
+        private async void PerformLogin(string username)
+        {
+            EditorUtility.DisplayProgressBar("FlexVault", $"Logging in as '{username}'...", 0.5f);
+            try
+            {
+                var result = await FxvRunner.LoginAsync(username);
+                if (result.Success)
+                {
+                    ShowNotification(new GUIContent($"Logged in as '{username}'."));
+                    Debug.Log($"[FlexVault] Logged in as '{username}'.");
+                    FlexVaultStateCache.RefreshAsync();
+                }
+                else
+                {
+                    EditorUtility.DisplayDialog("Log In Failed", result.ErrorMessage, "OK");
+                }
+            }
+            finally
+            {
+                EditorUtility.ClearProgressBar();
+                Repaint();
+            }
+        }
+
         private void PromptGotoRevision()
         {
             EditorInputDialog.Show("Go To Revision", "Enter target revision spec to move workspace state to (e.g. main.11 or main.11.2):", "", (rev) =>
@@ -1031,20 +1164,41 @@ namespace FlexVault.VCS.Editor.UI
 
     public class EditorInputDialog : EditorWindow
     {
+        // Keyed by title so repeatedly clicking the button that opens one (e.g. "Go To...") just
+        // refocuses the existing dialog instead of stacking up duplicates.
+        private static readonly Dictionary<string, EditorInputDialog> s_openDialogs = new Dictionary<string, EditorInputDialog>();
+
+        private string m_title;
         private string m_prompt;
         private string m_inputText;
         private Action<string> m_onConfirm;
 
         public static void Show(string title, string prompt, string defaultText, Action<string> onConfirm)
         {
+            if (s_openDialogs.TryGetValue(title, out var existing) && existing != null)
+            {
+                existing.Focus();
+                return;
+            }
+
             var window = CreateInstance<EditorInputDialog>();
             window.titleContent = new GUIContent(title);
+            window.m_title = title;
             window.m_prompt = prompt;
             window.m_inputText = defaultText ?? "";
             window.minSize = new Vector2(380, 130);
             window.maxSize = new Vector2(380, 130);
             window.m_onConfirm = onConfirm;
+            s_openDialogs[title] = window;
             window.ShowUtility();
+        }
+
+        private void OnDestroy()
+        {
+            if (m_title != null && s_openDialogs.TryGetValue(m_title, out var current) && current == this)
+            {
+                s_openDialogs.Remove(m_title);
+            }
         }
 
         private void OnGUI()

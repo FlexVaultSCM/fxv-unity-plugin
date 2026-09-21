@@ -188,7 +188,7 @@ namespace FlexVault.VCS.Editor.Tests
             Assert.AreEqual("main.12", entries[0].RevisionDisplay);
 
             // Unparented draft entry (Revision is null)
-            Assert.AreEqual("main.-.1", entries[1].RevisionDisplay);
+            Assert.AreEqual("main.unpublished.1", entries[1].RevisionDisplay);
 
             // Parented draft entry (Revision = 3, DraftRevision = 2)
             Assert.AreEqual("feature.3.2", entries[2].RevisionDisplay);

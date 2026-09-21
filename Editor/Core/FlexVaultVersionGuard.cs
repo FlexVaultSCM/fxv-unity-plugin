@@ -196,7 +196,13 @@ namespace FlexVault.VCS.Editor.Core
 
             try
             {
+                // Assembly.Location legitimately returns "" for assemblies Unity loads from a
+                // memory stream (triggers analyzer warning UAC0007); GetLoadedAssemblyPath() isn't
+                // available in this Unity version's API surface, so fall back to Location and treat
+                // an empty result the same as any other resolution failure below.
+#pragma warning disable UAC0007
                 string asmPath = typeof(FlexVaultVersionGuard).Assembly.Location;
+#pragma warning restore UAC0007
                 if (!string.IsNullOrEmpty(asmPath))
                 {
                     string dir = Path.GetDirectoryName(asmPath);
