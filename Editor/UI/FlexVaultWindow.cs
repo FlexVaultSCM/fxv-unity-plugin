@@ -16,6 +16,13 @@ namespace FlexVault.VCS.Editor.UI
             History
         }
 
+        private enum HistoryFilter
+        {
+            All,
+            Drafts,
+            Published
+        }
+
         // A large enough paste makes EditorGUILayout.TextArea's word-wrap layout pass slow enough
         // per-frame to freeze the editor; cap input length well below that.
         private const int MaxCommitDescriptionLength = 2000;
@@ -25,6 +32,7 @@ namespace FlexVault.VCS.Editor.UI
         private Vector2 m_historyScrollPos;
         private string m_commitDescription = string.Empty;
         private List<CommitRefJson> m_historyEntries = new List<CommitRefJson>();
+        private HistoryFilter m_historyFilter = HistoryFilter.All;
         private readonly HashSet<string> m_expandedRevisions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, ChangeInfoPayload> m_changeInfoCache = new Dictionary<string, ChangeInfoPayload>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> m_loadingChangeInfo = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -789,11 +797,22 @@ namespace FlexVault.VCS.Editor.UI
             }
         }
 
+        private bool MatchesHistoryFilter(CommitRefJson entry)
+        {
+            if (m_historyFilter == HistoryFilter.All) return true;
+
+            bool isDraft = string.Equals(entry.Commit?.Type, "draft", StringComparison.OrdinalIgnoreCase);
+            return m_historyFilter == HistoryFilter.Drafts ? isDraft : !isDraft;
+        }
+
         private void DrawHistoryTab()
         {
             EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
             {
                 GUILayout.Label("Recent Commits", EditorStyles.boldLabel);
+                GUILayout.FlexibleSpace();
+                string[] filterLabels = { "All", "Drafts", "Published" };
+                m_historyFilter = (HistoryFilter)GUILayout.Toolbar((int)m_historyFilter, filterLabels, EditorStyles.toolbarButton, GUILayout.Width(180));
             }
             EditorGUILayout.EndHorizontal();
 
@@ -807,6 +826,13 @@ namespace FlexVault.VCS.Editor.UI
             {
                 GUILayout.Space(20f);
                 EditorGUILayout.HelpBox("No revision history found for this branch.", MessageType.Info);
+                return;
+            }
+
+            if (m_historyFilter != HistoryFilter.All && !m_historyEntries.Any(MatchesHistoryFilter))
+            {
+                GUILayout.Space(20f);
+                EditorGUILayout.HelpBox($"No {m_historyFilter.ToString().ToLowerInvariant()} found in the loaded history.", MessageType.Info);
                 return;
             }
 
@@ -827,6 +853,8 @@ namespace FlexVault.VCS.Editor.UI
                 for (int i = 0; i < m_historyEntries.Count; i++)
                 {
                     var entry = m_historyEntries[i];
+                    if (!MatchesHistoryFilter(entry)) continue;
+
                     bool isCurrent = FlexVaultStateCache.IsCurrentWorkspaceRevision(entry, m_historyEntries);
 
                     var prevBg = GUI.backgroundColor;
