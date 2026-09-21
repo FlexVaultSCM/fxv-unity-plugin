@@ -10,11 +10,19 @@ namespace FlexVault.VCS.Editor.UI
 {
     public class FlexVaultHistoryWindow : EditorWindow
     {
+        private enum HistoryFilter
+        {
+            All,
+            Drafts,
+            Published
+        }
+
         private Vector2 m_scrollPos;
         private List<CommitRefJson> m_entries = new List<CommitRefJson>();
         private bool m_isLoading;
         private string m_filterPath = string.Empty;
         private string m_statusMessage = string.Empty;
+        private HistoryFilter m_historyFilter = HistoryFilter.All;
 
         public static void ShowHistory(string targetPath = null)
         {
@@ -167,6 +175,9 @@ namespace FlexVault.VCS.Editor.UI
 
                 GUILayout.FlexibleSpace();
 
+                string[] filterLabels = { "All", "Drafts", "Published" };
+                m_historyFilter = (HistoryFilter)GUILayout.Toolbar((int)m_historyFilter, filterLabels, EditorStyles.toolbarButton, GUILayout.Width(180));
+
                 GUI.enabled = !m_isLoading;
                 if (GUILayout.Button("Refresh", EditorStyles.toolbarButton, GUILayout.Width(65)))
                 {
@@ -187,15 +198,29 @@ namespace FlexVault.VCS.Editor.UI
                 EditorGUILayout.HelpBox(m_statusMessage, MessageType.Info);
             }
 
+            if (m_historyFilter != HistoryFilter.All && m_entries.Count > 0 && !m_entries.Any(MatchesHistoryFilter))
+            {
+                EditorGUILayout.HelpBox($"No {m_historyFilter.ToString().ToLowerInvariant()} found in the loaded history.", MessageType.Info);
+            }
+
             m_scrollPos = EditorGUILayout.BeginScrollView(m_scrollPos, GUILayout.ExpandHeight(true));
             {
                 for (int i = 0; i < m_entries.Count; i++)
                 {
                     var entry = m_entries[i];
+                    if (!MatchesHistoryFilter(entry)) continue;
                     DrawHistoryEntry(entry, i);
                 }
             }
             EditorGUILayout.EndScrollView();
+        }
+
+        private bool MatchesHistoryFilter(CommitRefJson entry)
+        {
+            if (m_historyFilter == HistoryFilter.All) return true;
+
+            bool isDraft = string.Equals(entry.Commit?.Type, "draft", StringComparison.OrdinalIgnoreCase);
+            return m_historyFilter == HistoryFilter.Drafts ? isDraft : !isDraft;
         }
 
         private readonly HashSet<string> m_expandedRevisions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
