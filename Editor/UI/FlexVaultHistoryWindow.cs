@@ -203,6 +203,20 @@ namespace FlexVault.VCS.Editor.UI
                 EditorGUILayout.HelpBox($"No {m_historyFilter.ToString().ToLowerInvariant()} found in the loaded history.", MessageType.Info);
             }
 
+            if (m_entries.Count > 0)
+            {
+                EditorGUILayout.BeginHorizontal();
+                {
+                    GUILayout.Space(18f + 2f);
+                    GUILayout.Label("Type", EditorStyles.miniBoldLabel, GUILayout.Width(75));
+                    GUILayout.Label("Revision", EditorStyles.miniBoldLabel, GUILayout.Width(115));
+                    GUILayout.Label("Author", EditorStyles.miniBoldLabel, GUILayout.Width(110));
+                    GUILayout.Label("Date", EditorStyles.miniBoldLabel, GUILayout.Width(110));
+                    GUILayout.FlexibleSpace();
+                }
+                EditorGUILayout.EndHorizontal();
+            }
+
             m_scrollPos = EditorGUILayout.BeginScrollView(m_scrollPos, GUILayout.ExpandHeight(true));
             {
                 for (int i = 0; i < m_entries.Count; i++)
