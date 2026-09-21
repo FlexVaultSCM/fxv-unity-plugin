@@ -401,15 +401,28 @@ namespace FlexVault.VCS.Editor.UI
             m_commitDescription = newDescription;
 
             GUILayout.Space(3f);
+            bool isLoggedIn = !string.IsNullOrEmpty(FlexVaultStateCache.LatestStatus?.CurrentUser);
             EditorGUILayout.BeginHorizontal();
             {
-                GUI.enabled = !m_isOperating && displayFiles.Count > 0 && !string.IsNullOrWhiteSpace(m_commitDescription);
-                string publishButtonLabel = isBehindRemote ? "Sync & Publish" : "Publish to Remote";
-                if (GUILayout.Button(publishButtonLabel, GUILayout.Height(32)))
+                if (!isLoggedIn)
                 {
-                    PublishChanges();
+                    GUI.enabled = !m_isOperating;
+                    if (GUILayout.Button("Log In to Publish", GUILayout.Height(32)))
+                    {
+                        PromptLogin();
+                    }
+                    GUI.enabled = true;
                 }
-                GUI.enabled = true;
+                else
+                {
+                    GUI.enabled = !m_isOperating && displayFiles.Count > 0 && !string.IsNullOrWhiteSpace(m_commitDescription);
+                    string publishButtonLabel = isBehindRemote ? "Sync & Publish" : "Publish to Remote";
+                    if (GUILayout.Button(publishButtonLabel, GUILayout.Height(32)))
+                    {
+                        PublishChanges();
+                    }
+                    GUI.enabled = true;
+                }
             }
             EditorGUILayout.EndHorizontal();
             GUILayout.Space(2f);
@@ -466,23 +479,20 @@ namespace FlexVault.VCS.Editor.UI
             var status = FlexVaultStateCache.LatestStatus;
             if (string.IsNullOrEmpty(status?.CurrentUser))
             {
-                int choice = EditorUtility.DisplayDialogComplex(
+                // The Publish button is gated on login, so this is only reachable if the session
+                // expired between the last repaint and this click; send the user to log in rather
+                // than let a publish that's certain to fail run anyway.
+                bool loginNow = EditorUtility.DisplayDialog(
                     "User Identity Warning",
                     "No logged-in FlexVault user was detected. Publishing requires an active login.",
                     "Log In",
-                    "Cancel",
-                    "Proceed Anyway");
+                    "Cancel");
 
-                if (choice == 0)
+                if (loginNow)
                 {
                     PromptLogin();
-                    return;
                 }
-                if (choice == 1)
-                {
-                    return;
-                }
-                // choice == 2 (Proceed Anyway): fall through and let 'fxv publish' itself decide.
+                return;
             }
 
             var syncStatus = status?.SyncStatus;
