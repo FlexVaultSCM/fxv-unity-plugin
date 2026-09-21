@@ -181,15 +181,20 @@ namespace FlexVault.VCS.Editor.UI
             string user = !string.IsNullOrEmpty(status?.CurrentUser) ? status.CurrentUser : "Logged out";
             var syncStatus = status?.SyncStatus;
 
-            string syncedRevText = syncStatus?.SyncedRevision != null
-                ? (status.CurrentBranch != null ? $"{status.CurrentBranch}.{syncStatus.SyncedRevision.Value}" : syncStatus.SyncedRevision.Value.ToString())
-                : (status?.HeadCommit?.LocalSnapshot != null ? status.HeadCommit.LocalSnapshot.RevisionDisplay : "None");
+            // Show the workspace's actual current revision (what History highlights as "Current"),
+            // not just the last revision synced from remote - those diverge whenever local drafts
+            // exist ahead of the synced baseline, and showing the synced one there read as stale.
+            string headRevText = status?.HeadCommit?.LocalSnapshot != null
+                ? status.HeadCommit.LocalSnapshot.RevisionDisplay
+                : (syncStatus?.SyncedRevision != null
+                    ? (status.CurrentBranch != null ? $"{status.CurrentBranch}.{syncStatus.SyncedRevision.Value}" : syncStatus.SyncedRevision.Value.ToString())
+                    : "None");
 
             bool isBehind = syncStatus != null && !syncStatus.UpToDate && syncStatus.RevisionsBehind > 0;
             string syncIcon = isBehind ? "▼" : "✓";
             string syncedText = isBehind
-                ? $"{syncIcon} Synced: {syncedRevText} ({syncStatus.RevisionsBehind} behind)"
-                : $"{syncIcon} Synced: {syncedRevText}";
+                ? $"{syncIcon} Head: {headRevText} ({syncStatus.RevisionsBehind} behind remote)"
+                : $"{syncIcon} Head: {headRevText}";
 
             var branchStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 13 };
             var syncedStyle = new GUIStyle(EditorStyles.label) { fontSize = 12 };
