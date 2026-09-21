@@ -216,6 +216,15 @@ namespace FlexVault.VCS.Editor.UI
                 GUILayout.FlexibleSpace();
                 GUILayout.Label($"User: {user}", userStyle);
 
+                if (string.IsNullOrEmpty(status?.CurrentUser))
+                {
+                    GUILayout.Space(4f);
+                    if (GUILayout.Button("Log In...", EditorStyles.toolbarButton, GUILayout.Width(60)))
+                    {
+                        PromptLogin();
+                    }
+                }
+
                 GUI.enabled = !FlexVaultStateCache.IsRefreshing;
                 if (GUILayout.Button("Refresh", EditorStyles.toolbarButton, GUILayout.Width(60)))
                 {
@@ -457,16 +466,23 @@ namespace FlexVault.VCS.Editor.UI
             var status = FlexVaultStateCache.LatestStatus;
             if (string.IsNullOrEmpty(status?.CurrentUser))
             {
-                bool proceed = EditorUtility.DisplayDialog(
+                int choice = EditorUtility.DisplayDialogComplex(
                     "User Identity Warning",
-                    "No logged-in FlexVault user was detected.\n'fxv publish' requires an active login.\nDo you want to proceed anyway?",
-                    "Proceed",
-                    "Cancel");
+                    "No logged-in FlexVault user was detected. Publishing requires an active login.",
+                    "Log In",
+                    "Cancel",
+                    "Proceed Anyway");
 
-                if (!proceed)
+                if (choice == 0)
+                {
+                    PromptLogin();
+                    return;
+                }
+                if (choice == 1)
                 {
                     return;
                 }
+                // choice == 2 (Proceed Anyway): fall through and let 'fxv publish' itself decide.
             }
 
             var syncStatus = status?.SyncStatus;
@@ -552,10 +568,29 @@ namespace FlexVault.VCS.Editor.UI
                     }
                     else
                     {
-                        EditorUtility.DisplayDialog(
-                            "Publish Failed",
-                            $"Snapshot succeeded locally, but publish failed:\n\n{pubResult.ErrorMessage}\n\nYour changes remain saved as an unpublished draft.",
-                            "OK");
+                        bool isLoginError = err.IndexOf("no user is logged in", StringComparison.OrdinalIgnoreCase) >= 0
+                            || err.IndexOf("fxv login", StringComparison.OrdinalIgnoreCase) >= 0;
+
+                        if (isLoginError)
+                        {
+                            bool loginNow = EditorUtility.DisplayDialog(
+                                "Publish Failed: Not Logged In",
+                                "Snapshot succeeded locally, but publish failed because no FlexVault user is logged in.\n\nYour changes remain saved as an unpublished draft. Log in and publish again from this window.",
+                                "Log In",
+                                "Later");
+
+                            if (loginNow)
+                            {
+                                PromptLogin();
+                            }
+                        }
+                        else
+                        {
+                            EditorUtility.DisplayDialog(
+                                "Publish Failed",
+                                $"Snapshot succeeded locally, but publish failed:\n\n{pubResult.ErrorMessage}\n\nYour changes remain saved as an unpublished draft.",
+                                "OK");
+                        }
                     }
                     return;
                 }
@@ -969,6 +1004,41 @@ namespace FlexVault.VCS.Editor.UI
             GUI.contentColor = color;
             GUILayout.Label(text, EditorStyles.miniBoldLabel, GUILayout.Width(22));
             GUI.contentColor = prevCol;
+        }
+
+        private void PromptLogin()
+        {
+            EditorInputDialog.Show("Log In to FlexVault", "Enter your FlexVault username:", "", (username) =>
+            {
+                if (!string.IsNullOrWhiteSpace(username))
+                {
+                    PerformLogin(username.Trim());
+                }
+            });
+        }
+
+        private async void PerformLogin(string username)
+        {
+            EditorUtility.DisplayProgressBar("FlexVault", $"Logging in as '{username}'...", 0.5f);
+            try
+            {
+                var result = await FxvRunner.LoginAsync(username);
+                if (result.Success)
+                {
+                    ShowNotification(new GUIContent($"Logged in as '{username}'."));
+                    Debug.Log($"[FlexVault] Logged in as '{username}'.");
+                    FlexVaultStateCache.RefreshAsync();
+                }
+                else
+                {
+                    EditorUtility.DisplayDialog("Log In Failed", result.ErrorMessage, "OK");
+                }
+            }
+            finally
+            {
+                EditorUtility.ClearProgressBar();
+                Repaint();
+            }
         }
 
         private void PromptGotoRevision()
