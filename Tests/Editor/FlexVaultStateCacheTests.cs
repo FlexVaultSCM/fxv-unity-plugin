@@ -424,5 +424,43 @@ namespace FlexVault.VCS.Editor.Tests
 
             Assert.IsFalse(FlexVaultStateCache.IsCurrentWorkspaceRevision(otherBranchCommit));
         }
+
+        [Test]
+        public void StateCache_UpdateCache_NullStatus_ClearsCachedBranches()
+        {
+            var field = typeof(FlexVaultStateCache).GetField("s_cachedBranches", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.IsNotNull(field);
+            var list = (List<BranchInfo>)field.GetValue(null);
+            lock (list)
+            {
+                list.Clear();
+                list.Add(new BranchInfo { Branch = "main", BranchType = "global" });
+            }
+
+            Assert.AreEqual(1, FlexVaultStateCache.CachedBranches.Count);
+
+            InvokeUpdateCache(null);
+
+            Assert.AreEqual(0, FlexVaultStateCache.CachedBranches.Count);
+        }
+
+        [Test]
+        public void StateCache_CachedBranches_ReturnsDefensiveCopy()
+        {
+            var field = typeof(FlexVaultStateCache).GetField("s_cachedBranches", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.IsNotNull(field);
+            var list = (List<BranchInfo>)field.GetValue(null);
+            lock (list)
+            {
+                list.Clear();
+                list.Add(new BranchInfo { Branch = "main", BranchType = "global" });
+            }
+
+            var copy = FlexVaultStateCache.CachedBranches;
+            Assert.AreEqual(1, copy.Count);
+            copy.Clear();
+
+            Assert.AreEqual(1, FlexVaultStateCache.CachedBranches.Count);
+        }
     }
 }

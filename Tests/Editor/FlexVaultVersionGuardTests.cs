@@ -61,30 +61,41 @@ namespace FlexVault.VCS.Editor.Tests
         public void CheckVersion_CompatibleVersions_Succeeds()
         {
             // Lower bound of pinned range
-            Assert.IsTrue(FlexVaultVersionGuard.CheckVersion("0.10.0", out string error1));
+            Assert.IsTrue(FlexVaultVersionGuard.CheckVersion("0.11.0", out string error1));
             Assert.IsNull(error1);
 
             // Within range
-            Assert.IsTrue(FlexVaultVersionGuard.CheckVersion("0.10.1", out string error2));
+            Assert.IsTrue(FlexVaultVersionGuard.CheckVersion("0.11.1", out string error2));
             Assert.IsNull(error2);
 
-            Assert.IsTrue(FlexVaultVersionGuard.CheckVersion("0.10.9", out string error3));
+            Assert.IsTrue(FlexVaultVersionGuard.CheckVersion("0.11.5", out string error3));
             Assert.IsNull(error3);
+
+            Assert.IsTrue(FlexVaultVersionGuard.CheckVersion("0.11.9", out string error4));
+            Assert.IsNull(error4);
         }
 
         [Test]
         public void CheckVersion_IncompatibleVersions_FailsWithDescriptiveError()
         {
             // Below min bound
-            Assert.IsFalse(FlexVaultVersionGuard.CheckVersion("0.9.0", out string errorBelow));
+            Assert.IsFalse(FlexVaultVersionGuard.CheckVersion("0.10.1", out string errorBelow));
             Assert.IsNotNull(errorBelow);
             StringAssert.Contains("Incompatible FlexVault CLI version", errorBelow);
             StringAssert.Contains("Please upgrade your fxv CLI executable", errorBelow);
 
+            Assert.IsFalse(FlexVaultVersionGuard.CheckVersion("0.10.9", out string errorBelow2));
+            Assert.IsNotNull(errorBelow2);
+            StringAssert.Contains("Incompatible FlexVault CLI version", errorBelow2);
+
             // Older versions are also below the min bound
-            Assert.IsFalse(FlexVaultVersionGuard.CheckVersion("0.5.0", out string errorOld));
+            Assert.IsFalse(FlexVaultVersionGuard.CheckVersion("0.9.0", out string errorOld));
             Assert.IsNotNull(errorOld);
             StringAssert.Contains("Incompatible FlexVault CLI version", errorOld);
+
+            Assert.IsFalse(FlexVaultVersionGuard.CheckVersion("0.5.0", out string errorOldest));
+            Assert.IsNotNull(errorOldest);
+            StringAssert.Contains("Incompatible FlexVault CLI version", errorOldest);
 
             // Upper bound (exclusive)
             Assert.IsFalse(FlexVaultVersionGuard.CheckVersion(FlexVaultVersionGuard.MaxVersion.ToString(), out string errorAtUpper));
@@ -109,10 +120,10 @@ namespace FlexVault.VCS.Editor.Tests
             FlexVaultVersionGuard.ResetCachedVersion();
             Assert.IsNull(FlexVaultVersionGuard.IsVersionCompatible);
 
-            bool ok = FlexVaultVersionGuard.CheckAndCacheVersion("0.10.2", out string err);
+            bool ok = FlexVaultVersionGuard.CheckAndCacheVersion("0.11.0", out string err);
             Assert.IsTrue(ok);
             Assert.IsTrue(FlexVaultVersionGuard.IsVersionCompatible);
-            Assert.AreEqual("0.10.2", FlexVaultVersionGuard.LastVersionString);
+            Assert.AreEqual("0.11.0", FlexVaultVersionGuard.LastVersionString);
             Assert.IsNull(err);
 
             FlexVaultVersionGuard.ResetCachedVersion();

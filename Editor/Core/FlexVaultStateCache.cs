@@ -17,7 +17,9 @@ namespace FlexVault.VCS.Editor.Core
         private static readonly List<FileStatusItem> s_workspaceChanges = new List<FileStatusItem>();
         private static readonly List<FileStatusItem> s_unpublishedChanges = new List<FileStatusItem>();
         private static StatusPayload s_latestStatus;
+        private static readonly List<BranchInfo> s_cachedBranches = new List<BranchInfo>();
         private static bool s_isRefreshing;
+        private static bool s_isRefreshingBranches;
         private static double s_lastRefreshTime;
 
         public static event Action OnStateChanged;
@@ -51,6 +53,7 @@ namespace FlexVault.VCS.Editor.Core
                     }
 
                     RefreshAsync();
+                    _ = RefreshBranchesAsync();
                 }
             };
         }
@@ -66,6 +69,16 @@ namespace FlexVault.VCS.Editor.Core
             }
         }
         public static StatusPayload LatestStatus => s_latestStatus;
+        public static List<BranchInfo> CachedBranches
+        {
+            get
+            {
+                lock (s_lock)
+                {
+                    return new List<BranchInfo>(s_cachedBranches);
+                }
+            }
+        }
 
         public static string GetStateByGuid(string guid)
         {
@@ -392,7 +405,7 @@ namespace FlexVault.VCS.Editor.Core
                         }
                         finally
                         {
-                            FinishRefresh(skipScan);
+                            FinishRefresh(skipScan, force);
                         }
                     };
                     return;
@@ -411,12 +424,13 @@ namespace FlexVault.VCS.Editor.Core
                 UnityEngine.Debug.LogError($"[FlexVault] Error updating state cache: {ex.Message}");
             }
 
-            FinishRefresh(skipScan);
+            FinishRefresh(skipScan, force);
         }
 
-        private static void FinishRefresh(bool skipScan)
+        private static void FinishRefresh(bool skipScan, bool force = false)
         {
             bool triggerPending = false;
+            bool shouldFetchBranches = false;
             lock (s_lock)
             {
                 s_isRefreshing = false;
@@ -426,11 +440,96 @@ namespace FlexVault.VCS.Editor.Core
                     s_refreshPending = false;
                     triggerPending = true;
                 }
+                else if (force || s_cachedBranches.Count == 0)
+                {
+                    shouldFetchBranches = true;
+                }
             }
 
             if (triggerPending)
             {
                 EditorApplication.delayCall += () => RefreshAsync(skipScan);
+            }
+            else if (shouldFetchBranches)
+            {
+                _ = RefreshBranchesAsync();
+            }
+        }
+
+        public static async Task RefreshBranchesAsync()
+        {
+            lock (s_lock)
+            {
+                if (s_isRefreshingBranches)
+                {
+                    return;
+                }
+                s_isRefreshingBranches = true;
+            }
+
+            try
+            {
+                var result = await FxvRunner.GetBranchListAsync(allBranches: true);
+                if (result.Success && result.Data?.Branches != null)
+                {
+                    bool changed = false;
+                    lock (s_lock)
+                    {
+                        var newBranches = result.Data.Branches;
+                        if (s_cachedBranches.Count != newBranches.Count)
+                        {
+                            changed = true;
+                        }
+                        else
+                        {
+                            for (int i = 0; i < s_cachedBranches.Count; i++)
+                            {
+                                if (s_cachedBranches[i].Branch != newBranches[i].Branch ||
+                                    s_cachedBranches[i].Retired != newBranches[i].Retired ||
+                                    s_cachedBranches[i].LocalOnly != newBranches[i].LocalOnly ||
+                                    s_cachedBranches[i].PublishedHead != newBranches[i].PublishedHead ||
+                                    s_cachedBranches[i].DraftHead != newBranches[i].DraftHead)
+                                {
+                                    changed = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (changed)
+                        {
+                            s_cachedBranches.Clear();
+                            s_cachedBranches.AddRange(newBranches);
+                        }
+                    }
+
+                    if (changed)
+                    {
+                        EditorApplication.delayCall += () =>
+                        {
+                            OnStateChanged?.Invoke();
+                        };
+                    }
+                }
+                else if (!result.Success && !string.IsNullOrEmpty(result.ErrorMessage))
+                {
+                    UnityEngine.Debug.LogWarning($"[FlexVault] Error fetching branch list: {result.ErrorMessage}");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Domain reload mid-execution
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"[FlexVault] Error fetching branch list: {ex.Message}");
+            }
+            finally
+            {
+                lock (s_lock)
+                {
+                    s_isRefreshingBranches = false;
+                }
             }
         }
 
@@ -446,6 +545,7 @@ namespace FlexVault.VCS.Editor.Core
                     s_changedFiles.Clear();
                     s_workspaceChanges.Clear();
                     s_unpublishedChanges.Clear();
+                    s_cachedBranches.Clear();
                 }
                 OnStateChanged?.Invoke();
                 try { EditorApplication.RepaintProjectWindow(); } catch { }

@@ -373,4 +373,39 @@ namespace FlexVault.VCS.Editor.Core
         [JsonProperty("changes")]
         public List<ChangeInfoItem> Changes { get; set; } = new List<ChangeInfoItem>();
     }
+
+    [Serializable]
+    public class BranchInfo
+    {
+        [JsonProperty("branch")]
+        public string Branch { get; set; }
+
+        [JsonProperty("branch_unique_id")]
+        public string BranchUniqueId { get; set; }
+
+        [JsonProperty("branch_type")]
+        public string BranchType { get; set; }
+
+        [JsonProperty("owner")]
+        public string Owner { get; set; }
+
+        [JsonProperty("published_head")]
+        public string PublishedHead { get; set; }
+
+        [JsonProperty("draft_head")]
+        public string DraftHead { get; set; }
+
+        [JsonProperty("local_only")]
+        public bool LocalOnly { get; set; }
+
+        [JsonProperty("retired")]
+        public bool Retired { get; set; }
+    }
+
+    [Serializable]
+    public class BranchListPayload
+    {
+        [JsonProperty("branches")]
+        public List<BranchInfo> Branches { get; set; } = new List<BranchInfo>();
+    }
 }
