@@ -19,6 +19,7 @@ namespace FlexVault.VCS.Editor.Core
         private static StatusPayload s_latestStatus;
         private static readonly List<BranchInfo> s_cachedBranches = new List<BranchInfo>();
         private static bool s_isRefreshing;
+        private static bool s_isRefreshingBranches;
         private static double s_lastRefreshTime;
 
         public static event Action OnStateChanged;
@@ -457,6 +458,15 @@ namespace FlexVault.VCS.Editor.Core
 
         public static async Task RefreshBranchesAsync()
         {
+            lock (s_lock)
+            {
+                if (s_isRefreshingBranches)
+                {
+                    return;
+                }
+                s_isRefreshingBranches = true;
+            }
+
             try
             {
                 var result = await FxvRunner.GetBranchListAsync(allBranches: true);
@@ -476,7 +486,9 @@ namespace FlexVault.VCS.Editor.Core
                             {
                                 if (s_cachedBranches[i].Branch != newBranches[i].Branch ||
                                     s_cachedBranches[i].Retired != newBranches[i].Retired ||
-                                    s_cachedBranches[i].LocalOnly != newBranches[i].LocalOnly)
+                                    s_cachedBranches[i].LocalOnly != newBranches[i].LocalOnly ||
+                                    s_cachedBranches[i].PublishedHead != newBranches[i].PublishedHead ||
+                                    s_cachedBranches[i].DraftHead != newBranches[i].DraftHead)
                                 {
                                     changed = true;
                                     break;
@@ -493,8 +505,15 @@ namespace FlexVault.VCS.Editor.Core
 
                     if (changed)
                     {
-                        OnStateChanged?.Invoke();
+                        EditorApplication.delayCall += () =>
+                        {
+                            OnStateChanged?.Invoke();
+                        };
                     }
+                }
+                else if (!result.Success && !string.IsNullOrEmpty(result.ErrorMessage))
+                {
+                    UnityEngine.Debug.LogWarning($"[FlexVault] Error fetching branch list: {result.ErrorMessage}");
                 }
             }
             catch (OperationCanceledException)
@@ -504,6 +523,13 @@ namespace FlexVault.VCS.Editor.Core
             catch (Exception ex)
             {
                 UnityEngine.Debug.LogWarning($"[FlexVault] Error fetching branch list: {ex.Message}");
+            }
+            finally
+            {
+                lock (s_lock)
+                {
+                    s_isRefreshingBranches = false;
+                }
             }
         }
 
