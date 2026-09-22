@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.5.3...v0.6.0) (2026-09-22)
+
+
+### Features
+
+* support branch switching and fxv 0.11.0 compatibility ([#26](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/26)) ([8e53f75](https://github.com/FlexVaultSCM/fxv-unity-plugin/commit/8e53f75f2c873e3054452e536fff23dfb650c55b))
+
 ## [0.5.3](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.5.2...v0.5.3) (2026-09-21)
 
 
