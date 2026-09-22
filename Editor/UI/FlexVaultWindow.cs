@@ -123,6 +123,32 @@ namespace FlexVault.VCS.Editor.UI
             EditorGUILayout.EndHorizontal();
         }
 
+        private static string GetHeaderVersionDisplay()
+        {
+            string cliVersion = FlexVaultVersionGuard.LastVersionString;
+            string pluginVersion = FlexVaultVersionGuard.PluginVersion;
+
+            bool hasCli = !string.IsNullOrEmpty(cliVersion);
+            bool hasPlugin = !string.IsNullOrEmpty(pluginVersion) && pluginVersion != FlexVaultVersionGuard.DefaultPluginVersion;
+
+            if (!hasCli && !hasPlugin)
+            {
+                return string.Empty;
+            }
+
+            var parts = new List<string>(2);
+            if (hasCli)
+            {
+                parts.Add($"fxv {cliVersion}");
+            }
+            if (hasPlugin)
+            {
+                parts.Add($"plugin v{pluginVersion} (beta)");
+            }
+
+            return string.Join(" / ", parts);
+        }
+
         private void DrawNotRepositoryUI()
         {
             GUILayout.Space(20f);
@@ -210,7 +236,12 @@ namespace FlexVault.VCS.Editor.UI
 
             EditorGUILayout.BeginHorizontal(EditorStyles.toolbar, GUILayout.Height(24));
             {
-                GUILayout.Label($"Branch: {branch}", branchStyle, GUILayout.ExpandWidth(false));
+                GUI.enabled = !m_isOperating;
+                if (GUILayout.Button($"Branch: {branch}", EditorStyles.toolbarDropDown, GUILayout.ExpandWidth(false)))
+                {
+                    ShowBranchMenu(GUILayoutUtility.GetLastRect());
+                }
+                GUI.enabled = true;
                 GUILayout.Space(14f);
                 GUILayout.Label(syncedText, syncedStyle, GUILayout.ExpandWidth(false));
                 GUILayout.Space(10f);
@@ -220,25 +251,33 @@ namespace FlexVault.VCS.Editor.UI
                     PromptGotoRevision();
                 }
 
-                GUI.enabled = !FlexVaultStateCache.IsRefreshing && !m_isOperating;
+                GUI.enabled = !m_isOperating;
                 if (GUILayout.Button("Sync Latest", EditorStyles.toolbarButton, GUILayout.Width(85)))
                 {
                     SyncWorkspace();
                 }
 
                 GUILayout.FlexibleSpace();
+                string headerVersion = GetHeaderVersionDisplay();
+                if (!string.IsNullOrEmpty(headerVersion))
+                {
+                    GUILayout.Label(headerVersion, EditorStyles.miniLabel);
+                    GUILayout.Space(8f);
+                }
                 GUILayout.Label($"User: {user}", userStyle);
 
                 if (string.IsNullOrEmpty(status?.CurrentUser))
                 {
                     GUILayout.Space(4f);
+                    GUI.enabled = !m_isOperating;
                     if (GUILayout.Button("Log In...", EditorStyles.toolbarButton, GUILayout.Width(60)))
                     {
                         PromptLogin();
                     }
+                    GUI.enabled = true;
                 }
 
-                GUI.enabled = !FlexVaultStateCache.IsRefreshing;
+                GUI.enabled = !m_isOperating;
                 if (GUILayout.Button("Refresh", EditorStyles.toolbarButton, GUILayout.Width(60)))
                 {
                     FlexVaultStateCache.RefreshAsync(skipScan: false, force: true);
@@ -277,7 +316,7 @@ namespace FlexVault.VCS.Editor.UI
                         $"Workspace is {syncStatus.RevisionsBehind} revision(s) behind remote HEAD (Rev: {syncStatus.PublishedHeadRevision}).",
                         EditorStyles.wordWrappedLabel);
 
-                    GUI.enabled = !m_isOperating && !FlexVaultStateCache.IsRefreshing;
+                    GUI.enabled = !m_isOperating;
                     if (GUILayout.Button("Sync Latest", GUILayout.Width(95), GUILayout.Height(22)))
                     {
                         SyncWorkspace();
@@ -385,7 +424,7 @@ namespace FlexVault.VCS.Editor.UI
                         string behindWarning = $"Workspace is {syncStatus.RevisionsBehind} revision(s) behind remote. Sync required before publishing.";
                         EditorGUILayout.LabelField(behindWarning, EditorStyles.wordWrappedMiniLabel);
 
-                        GUI.enabled = !FlexVaultStateCache.IsRefreshing && !m_isOperating;
+                        GUI.enabled = !m_isOperating;
                         if (GUILayout.Button("Sync Now", EditorStyles.miniButton, GUILayout.Width(75)))
                         {
                             SyncWorkspace();
@@ -1159,6 +1198,104 @@ namespace FlexVault.VCS.Editor.UI
                 m_isOperating = false;
                 Repaint();
             });
+        }
+
+        private void ShowBranchMenu(Rect buttonRect = default)
+        {
+            var menu = new GenericMenu();
+            var branches = FlexVaultStateCache.CachedBranches;
+            string currentBranch = FlexVaultStateCache.LatestStatus?.CurrentBranch ?? string.Empty;
+
+            if (branches == null || branches.Count == 0)
+            {
+                menu.AddDisabledItem(new GUIContent("No branches loaded"));
+                menu.AddSeparator("");
+                menu.AddItem(new GUIContent("Refresh Branch List"), false, () => _ = FlexVaultStateCache.RefreshBranchesAsync());
+                _ = FlexVaultStateCache.RefreshBranchesAsync();
+            }
+            else
+            {
+                foreach (var b in branches)
+                {
+                    string label = b.Branch;
+                    if (b.Retired)
+                    {
+                        label += " (retired)";
+                    }
+                    else if (b.LocalOnly)
+                    {
+                        label += " (local only)";
+                    }
+
+                    if (string.Equals(b.Branch, currentBranch, StringComparison.OrdinalIgnoreCase))
+                    {
+                        label = "● " + label;
+                    }
+
+                    string targetBranch = b.Branch;
+                    if (string.Equals(b.Branch, currentBranch, StringComparison.OrdinalIgnoreCase) || b.Retired)
+                    {
+                        menu.AddDisabledItem(new GUIContent(label));
+                    }
+                    else
+                    {
+                        menu.AddItem(new GUIContent(label), false, () => SwitchBranch(targetBranch));
+                    }
+                }
+
+                menu.AddSeparator("");
+                menu.AddItem(new GUIContent("Refresh Branch List"), false, () => _ = FlexVaultStateCache.RefreshBranchesAsync());
+            }
+
+            if (buttonRect.width > 0 && buttonRect.height > 0)
+            {
+                menu.DropDown(buttonRect);
+            }
+            else
+            {
+                menu.ShowAsContext();
+            }
+        }
+
+        private async void SwitchBranch(string targetBranch)
+        {
+            if (string.IsNullOrEmpty(targetBranch)) return;
+
+            if (!FlexVaultSafetyGuards.EnsureSafeToMutateWorkspace("Branch Switch", promptSaveDirtyScenes: true)) return;
+
+            m_isOperating = true;
+            EditorApplication.LockReloadAssemblies();
+
+            try
+            {
+                EditorUtility.DisplayProgressBar("FlexVault", $"Switching to branch '{targetBranch}'...", 0.5f);
+                var result = await FxvRunner.BranchSwitchAsync(targetBranch);
+                if (!result.Success)
+                {
+                    EditorUtility.DisplayDialog("Branch Switch Failed", result.ErrorMessage ?? "Unknown error", "OK");
+                    Debug.LogError($"[FlexVault] Branch switch failed: {result.ErrorMessage}");
+                }
+                else
+                {
+                    string msg = $"Switched to branch '{targetBranch}'.";
+                    ShowNotification(new GUIContent(msg));
+                    Debug.Log($"[FlexVault] {msg}");
+                }
+            }
+            catch (Exception ex)
+            {
+                EditorUtility.DisplayDialog("Branch Switch Error", ex.Message, "OK");
+                Debug.LogError($"[FlexVault] Branch switch error: {ex.Message}");
+            }
+            finally
+            {
+                EditorUtility.ClearProgressBar();
+                AssetDatabase.Refresh();
+                EditorApplication.UnlockReloadAssemblies();
+                m_isOperating = false;
+                FlexVaultStateCache.RefreshAsync();
+                Repaint();
+            }
         }
     }
 

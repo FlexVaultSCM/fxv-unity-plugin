@@ -301,5 +301,72 @@ namespace FlexVault.VCS.Editor.Tests
             Assert.AreEqual("unchanged", item.EffectiveWorkspaceState);
             Assert.AreEqual("unchanged", item.EffectiveState);
         }
+
+        [Test]
+        public void BranchListPayload_Deserialization_ParsesCorrectly()
+        {
+            string json = @"{
+                ""program"": {
+                    ""name"": ""fxv"",
+                    ""version"": ""0.11.0"",
+                    ""executable"": ""fxv.exe"",
+                    ""arguments"": [""branch"", ""list"", ""--format"", ""json""],
+                    ""invoked_at"": ""2026-09-22T12:00:00Z""
+                },
+                ""message"": {
+                    ""kind"": ""branch-list"",
+                    ""version"": ""1.0"",
+                    ""payload"": {
+                        ""branches"": [
+                            {
+                                ""branch"": ""main"",
+                                ""branch_unique_id"": ""0123456789abcdef"",
+                                ""branch_type"": ""global"",
+                                ""published_head"": ""main.10"",
+                                ""draft_head"": ""main.10.1"",
+                                ""local_only"": false,
+                                ""retired"": false
+                            },
+                            {
+                                ""branch"": ""alice/feature"",
+                                ""branch_unique_id"": ""fedcba9876543210"",
+                                ""branch_type"": ""user"",
+                                ""owner"": ""alice"",
+                                ""draft_head"": ""alice/feature.-.1"",
+                                ""local_only"": true,
+                                ""retired"": false
+                            }
+                        ]
+                    }
+                }
+            }";
+
+            var envelope = JsonConvert.DeserializeObject<OutputEnvelope<BranchListPayload>>(json);
+            Assert.IsNotNull(envelope);
+            Assert.IsNotNull(envelope.Message);
+            Assert.AreEqual("branch-list", envelope.Message.Kind);
+
+            var payload = envelope.Message.Payload;
+            Assert.IsNotNull(payload);
+            Assert.AreEqual(2, payload.Branches.Count);
+
+            var b0 = payload.Branches[0];
+            Assert.AreEqual("main", b0.Branch);
+            Assert.AreEqual("0123456789abcdef", b0.BranchUniqueId);
+            Assert.AreEqual("global", b0.BranchType);
+            Assert.AreEqual("main.10", b0.PublishedHead);
+            Assert.AreEqual("main.10.1", b0.DraftHead);
+            Assert.IsFalse(b0.LocalOnly);
+            Assert.IsFalse(b0.Retired);
+
+            var b1 = payload.Branches[1];
+            Assert.AreEqual("alice/feature", b1.Branch);
+            Assert.AreEqual("fedcba9876543210", b1.BranchUniqueId);
+            Assert.AreEqual("user", b1.BranchType);
+            Assert.AreEqual("alice", b1.Owner);
+            Assert.AreEqual("alice/feature.-.1", b1.DraftHead);
+            Assert.IsTrue(b1.LocalOnly);
+            Assert.IsFalse(b1.Retired);
+        }
     }
 }

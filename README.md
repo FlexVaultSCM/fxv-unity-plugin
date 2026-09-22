@@ -7,7 +7,7 @@ Unity Editor Version Control plugin for [FlexVault](https://fxv.dev). Integrates
 ## Requirements
 
 * **Unity**: Unity 2021.3 LTS, 2022.3 LTS, or Unity 6+.
-* **FlexVault CLI**: `fxv` binary version `0.10.0` to `< 0.12.0` installed and accessible (or configured via Project Settings).
+* **FlexVault CLI**: `fxv` binary version `0.11.0` to `< 0.12.0` installed and accessible (or configured via Project Settings).
 * **Newtonsoft JSON**: Automatically resolved via Package Manager (`com.unity.nuget.newtonsoft-json`).
 
 ---
@@ -53,6 +53,7 @@ Navigate to **Edit > Project Settings > Version Control > FlexVault**:
   * **Publish**: Prompts for a commit description and publishes the entire workspace draft (`fxv snapshot` followed by `fxv publish`).
   * **Revert**: Reverts selected assets and their companion `.meta` files to the published base.
   * **Sync View**: Displays revision status (revisions behind remote HEAD) and provides one-click workspace synchronization (`fxv sync`).
+  * **Branch Swapping**: View and switch branches directly from the toolbar menu (`fxv branch switch`), with safety pre-checks and asset re-scanning.
   * **History & Revision Jumping**: Shows recent branch commits with timestamps, author attribution, revision comparison, and one-click workspace state switching (`fxv goto`).
 * **Project Window Badges**:
   * Displays visual status indicators on items in the Project window (`+` Added, `~` Modified, `-` Deleted, `!` Conflicted).

@@ -447,6 +447,22 @@ namespace FlexVault.VCS.Editor.Core
             return await RunCommandAsync<ChangeInfoPayload>(args, ct);
         }
 
+        public static async Task<FxvResult<BranchListPayload>> GetBranchListAsync(bool allBranches = false, CancellationToken ct = default)
+        {
+            var args = new List<string> { "branch", "list" };
+            if (allBranches)
+            {
+                args.Add("--all");
+            }
+            return await RunCommandAsync<BranchListPayload>(args, ct);
+        }
+
+        public static async Task<FxvResult<WorkspaceSyncPayload>> BranchSwitchAsync(string branch, CancellationToken ct = default)
+        {
+            var args = new List<string> { "branch", "switch", branch };
+            return await RunCommandAsync<WorkspaceSyncPayload>(args, ct);
+        }
+
         public static async Task<bool> CatToFileAsync(
             string repoRelativePath,
             string revision,
