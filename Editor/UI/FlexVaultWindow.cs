@@ -333,6 +333,7 @@ namespace FlexVault.VCS.Editor.UI
             {
                 GUILayout.Space(15f);
                 EditorGUILayout.HelpBox("Working tree is clean. No pending or unpublished changes.", MessageType.Info);
+                GUILayout.FlexibleSpace();
             }
 
             int conflictCount = 0;
@@ -477,9 +478,7 @@ namespace FlexVault.VCS.Editor.UI
                 }
             }
             EditorGUILayout.EndHorizontal();
-            GUILayout.Space(2f);
-            EditorGUILayout.LabelField("Note: Changes are snapshotted automatically and published together.", EditorStyles.miniLabel);
-            GUILayout.Space(5f);
+            GUILayout.Space(4f);
         }
 
 
@@ -858,6 +857,7 @@ namespace FlexVault.VCS.Editor.UI
             if (m_isLoadingHistory)
             {
                 EditorGUILayout.HelpBox("Loading revision history...", MessageType.Info);
+                GUILayout.FlexibleSpace();
                 return;
             }
 
@@ -865,6 +865,7 @@ namespace FlexVault.VCS.Editor.UI
             {
                 GUILayout.Space(20f);
                 EditorGUILayout.HelpBox("No revision history found for this branch.", MessageType.Info);
+                GUILayout.FlexibleSpace();
                 return;
             }
 
@@ -872,6 +873,7 @@ namespace FlexVault.VCS.Editor.UI
             {
                 GUILayout.Space(20f);
                 EditorGUILayout.HelpBox($"No {m_historyFilter.ToString().ToLowerInvariant()} found in the loaded history.", MessageType.Info);
+                GUILayout.FlexibleSpace();
                 return;
             }
 
