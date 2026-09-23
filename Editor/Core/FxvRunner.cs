@@ -319,6 +319,65 @@ namespace FlexVault.VCS.Editor.Core
             return await RunCommandAsync<object>(args, ct);
         }
 
+        // Builds the CLI args for 'fxv integration register --name unity ...', split out from
+        // RegisterIntegrationAsync so the args themselves are directly testable.
+        private static List<string> BuildIntegrationRegisterArgs(string workspace, string pluginVersion, string minVersion, string maxVersion)
+        {
+            var args = new List<string> { "integration", "register", "--name", "unity" };
+            if (!string.IsNullOrEmpty(pluginVersion) && !string.Equals(pluginVersion, "unknown", StringComparison.OrdinalIgnoreCase))
+            {
+                args.Add("--plugin-version");
+                args.Add(pluginVersion);
+            }
+            if (!string.IsNullOrEmpty(minVersion))
+            {
+                args.Add("--min");
+                args.Add(minVersion);
+            }
+            if (!string.IsNullOrEmpty(maxVersion))
+            {
+                args.Add("--max-version");
+                args.Add(maxVersion);
+            }
+            args.Add("--workspace");
+            args.Add(workspace);
+            return args;
+        }
+
+        // Registers this plugin instance with fxv's integration registry for the current workspace.
+        // Best-effort and non-blocking: failures are logged and never surfaced to the user.
+        public static async Task RegisterIntegrationAsync(CancellationToken ct = default)
+        {
+            string workspace = FlexVaultSettings.GetRepositoryRoot();
+            var args = BuildIntegrationRegisterArgs(
+                workspace,
+                FlexVaultVersionGuard.PluginVersion,
+                FlexVaultVersionGuard.MinVersion.ToString(),
+                FlexVaultVersionGuard.MaxVersion.ToString()
+            );
+
+            try
+            {
+                var result = await RunCommandAsync<object>(args, ct);
+                if (result.Success)
+                {
+                    UnityEngine.Debug.Log($"[FlexVault] Registered unity integration for workspace {workspace}.");
+                }
+                else
+                {
+                    UnityEngine.Debug.LogWarning($"[FlexVault] Integration registration failed (non-fatal): {result.ErrorMessage}");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // fxv was killed because a domain reload started mid-registration; nothing to report.
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"[FlexVault] Integration registration failed (non-fatal): {ex.Message}");
+            }
+        }
+
         public static async Task<FxvResult<object>> SnapshotAsync(string description, CancellationToken ct = default)
         {
             var args = new List<string> { "snapshot" };

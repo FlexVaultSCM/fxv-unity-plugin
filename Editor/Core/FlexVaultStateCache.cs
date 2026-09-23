@@ -43,13 +43,20 @@ namespace FlexVault.VCS.Editor.Core
                     {
                         Debug.LogError($"[FlexVault] Plugin loaded at version {FlexVaultVersionGuard.PluginVersion}, but CLI version check failed: {FlexVaultVersionGuard.LastErrorMessage}");
                     }
-                    else if (!string.IsNullOrEmpty(cliVersion))
-                    {
-                        Debug.Log($"[FlexVault] Plugin loaded at version {FlexVaultVersionGuard.PluginVersion} (CLI version {cliVersion})");
-                    }
                     else
                     {
-                        Debug.Log($"[FlexVault] Plugin loaded at version {FlexVaultVersionGuard.PluginVersion}");
+                        if (!string.IsNullOrEmpty(cliVersion))
+                        {
+                            Debug.Log($"[FlexVault] Plugin loaded at version {FlexVaultVersionGuard.PluginVersion} (CLI version {cliVersion})");
+                        }
+                        else
+                        {
+                            Debug.Log($"[FlexVault] Plugin loaded at version {FlexVaultVersionGuard.PluginVersion}");
+                        }
+
+                        // Register this plugin instance with fxv's integration registry. Best-effort:
+                        // failures are logged and never block editor startup.
+                        _ = FxvRunner.RegisterIntegrationAsync();
                     }
 
                     RefreshAsync();
