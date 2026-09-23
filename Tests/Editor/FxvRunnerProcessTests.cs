@@ -70,6 +70,36 @@ namespace FlexVault.VCS.Editor.Tests
             Assert.AreEqual(@"revert ""C:\My Project\Folder\\\\""", formatted);
         }
 
+        private static List<string> InvokeBuildIntegrationRegisterArgs(string workspace, string pluginVersion, string minVersion, string maxVersion)
+        {
+            var method = typeof(FxvRunner).GetMethod("BuildIntegrationRegisterArgs", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.IsNotNull(method, "BuildIntegrationRegisterArgs method should exist on FxvRunner");
+            return (List<string>)method.Invoke(null, new object[] { workspace, pluginVersion, minVersion, maxVersion });
+        }
+
+        [Test]
+        public void BuildIntegrationRegisterArgs_FullySpecified_IncludesAllFlags()
+        {
+            var args = InvokeBuildIntegrationRegisterArgs("/tmp/ws", "0.6.0", "0.11.0", "0.12.0");
+            CollectionAssert.AreEqual(
+                new[] { "integration", "register", "--name", "unity", "--plugin-version", "0.6.0", "--min", "0.11.0", "--max-version", "0.12.0", "--workspace", "/tmp/ws" },
+                args);
+        }
+
+        [Test]
+        public void BuildIntegrationRegisterArgs_UnknownPluginVersion_OmitsPluginVersionFlag()
+        {
+            var args = InvokeBuildIntegrationRegisterArgs("/tmp/ws", "unknown", "0.11.0", "0.12.0");
+            CollectionAssert.DoesNotContain(args, "--plugin-version");
+        }
+
+        [Test]
+        public void BuildIntegrationRegisterArgs_EmptyPluginVersion_OmitsPluginVersionFlag()
+        {
+            var args = InvokeBuildIntegrationRegisterArgs("/tmp/ws", "", "0.11.0", "0.12.0");
+            CollectionAssert.DoesNotContain(args, "--plugin-version");
+        }
+
         [Test]
         public async Task RunCommandAsync_NonExistentBinary_FailsGracefully()
         {
