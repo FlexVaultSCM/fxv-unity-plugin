@@ -356,14 +356,25 @@ namespace FlexVault.VCS.Editor.Core
                 FlexVaultVersionGuard.MaxVersion.ToString()
             );
 
-            var result = await RunCommandAsync<object>(args, ct);
-            if (result.Success)
+            try
             {
-                UnityEngine.Debug.Log($"[FlexVault] Registered unity integration for workspace {workspace}.");
+                var result = await RunCommandAsync<object>(args, ct);
+                if (result.Success)
+                {
+                    UnityEngine.Debug.Log($"[FlexVault] Registered unity integration for workspace {workspace}.");
+                }
+                else
+                {
+                    UnityEngine.Debug.LogWarning($"[FlexVault] Integration registration failed (non-fatal): {result.ErrorMessage}");
+                }
             }
-            else
+            catch (OperationCanceledException)
             {
-                UnityEngine.Debug.LogWarning($"[FlexVault] Integration registration failed (non-fatal): {result.ErrorMessage}");
+                // fxv was killed because a domain reload started mid-registration; nothing to report.
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"[FlexVault] Integration registration failed (non-fatal): {ex.Message}");
             }
         }
 
