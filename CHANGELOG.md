@@ -5,6 +5,9 @@
 
 ### Bug Fixes
 
+* History tab row content misaligning between rows due to zebra-striping with GUIStyles that have different padding ([#31](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/31))
+* folder entries added to .fxvignore via the context menu missing a trailing slash ([#31](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/31))
+* toolbar Refresh button not reloading History entries while the History tab is active ([#31](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/31))
 * trigger release-please version bump ([#32](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/32)) ([551fdd3](https://github.com/FlexVaultSCM/fxv-unity-plugin/commit/551fdd319c44eaeb34e5fc407683b9b9a190899f))
 
 ## [0.7.0](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.6.0...v0.7.0) (2026-09-23)
