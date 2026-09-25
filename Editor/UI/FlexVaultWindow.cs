@@ -27,8 +27,11 @@ namespace FlexVault.VCS.Editor.UI
         // per-frame to freeze the editor; cap input length well below that.
         private const int MaxCommitDescriptionLength = 2000;
 
+        private static float ChangesRowHeight => EditorGUIUtility.singleLineHeight + EditorGUIUtility.standardVerticalSpacing;
+
         private Tab m_currentTab = Tab.Changes;
         private Vector2 m_scrollPos;
+        private float m_changesViewHeight = 400f;
         private Vector2 m_historyScrollPos;
         private string m_commitDescription = string.Empty;
         private List<CommitRefJson> m_historyEntries = new List<CommitRefJson>();
@@ -370,11 +373,22 @@ namespace FlexVault.VCS.Editor.UI
 
             if (displayFiles.Count > 0)
             {
+                // Only lay out rows inside the viewport. Drawing every row made each IMGUI event
+                // (every keystroke in the commit description) O(file count). The range is computed
+                // from the scroll position before BeginScrollView so Layout and the event that
+                // follows it see the same controls.
+                float rowHeight = ChangesRowHeight;
+                int firstRow = Mathf.Clamp(Mathf.FloorToInt(m_scrollPos.y / rowHeight), 0, displayFiles.Count);
+                int visibleRows = Mathf.CeilToInt(m_changesViewHeight / rowHeight) + 2;
+                int lastRow = Mathf.Min(displayFiles.Count, firstRow + visibleRows);
+
                 m_scrollPos = EditorGUILayout.BeginScrollView(m_scrollPos, GUILayout.ExpandHeight(true));
                 {
-                    foreach (var item in displayFiles)
+                    GUILayout.Space(firstRow * rowHeight);
+                    for (int i = firstRow; i < lastRow; i++)
                     {
-                        EditorGUILayout.BeginHorizontal();
+                        var item = displayFiles[i];
+                        EditorGUILayout.BeginHorizontal(GUILayout.Height(rowHeight));
                         {
                             DrawStateBadge(item.EffectiveState);
 
@@ -413,8 +427,13 @@ namespace FlexVault.VCS.Editor.UI
                         }
                         EditorGUILayout.EndHorizontal();
                     }
+                    GUILayout.Space((displayFiles.Count - lastRow) * rowHeight);
                 }
                 EditorGUILayout.EndScrollView();
+                if (Event.current.type == EventType.Repaint)
+                {
+                    m_changesViewHeight = GUILayoutUtility.GetLastRect().height;
+                }
             }
 
             bool isBehindRemote = syncStatus != null && !syncStatus.UpToDate && syncStatus.RevisionsBehind > 0;
