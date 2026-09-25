@@ -14,19 +14,21 @@ Unity Editor Version Control plugin for [FlexVault](https://fxv.dev). Integrates
 
 ## Installation
 
-### Option 1: Package Manager (Git URL or Release Tarball URL)
+### Option 1: Package Manager (Git URL)
 1. In the Unity Editor, open **Window > Package Manager**.
 2. Click the `+` button in the top-left and select **Add package from git URL...**.
-3. Enter the repository URL or a direct release tarball link from [GitHub Releases](https://github.com/FlexVaultSCM/fxv-unity-plugin/releases/):
+3. Enter the repository URL:
    * **Latest Git**: `https://github.com/FlexVaultSCM/fxv-unity-plugin.git`
-   * **Pinned Tag**: `https://github.com/FlexVaultSCM/fxv-unity-plugin.git#v0.2.0`
-   * **Release Tarball**: `https://github.com/FlexVaultSCM/fxv-unity-plugin/releases/latest/download/com.flexvault.vcs.tgz`
+   * **Pinned Tag**: `https://github.com/FlexVaultSCM/fxv-unity-plugin.git#v0.7.1`
 
 ### Option 2: Download Release Tarball
-1. Download `com.flexvault.vcs.tgz` from the latest release on [GitHub Releases](https://github.com/FlexVaultSCM/fxv-unity-plugin/releases/).
+1. Download [`com.flexvault.vcs.tgz`](https://github.com/FlexVaultSCM/fxv-unity-plugin/releases/latest/download/com.flexvault.vcs.tgz) from the latest release (or a specific release on [GitHub Releases](https://github.com/FlexVaultSCM/fxv-unity-plugin/releases/)).
 2. In the Unity Editor, open **Window > Package Manager**.
 3. Click `+` and choose **Add package from tarball...**.
-4. Select the downloaded `.tgz` archive.
+4. Select the downloaded `.tgz` archive. Do not extract it first.
+
+> [!NOTE]
+> The tarball download link cannot be used with **Add package from git URL...**. That option only accepts Git repository URLs, so Unity rejects the link as an invalid package.
 
 ### Option 3: Local Disk (Development / Embedded)
 1. In the Unity Editor, open **Window > Package Manager**.
