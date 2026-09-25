@@ -281,6 +281,10 @@ namespace FlexVault.VCS.Editor.UI
                 if (GUILayout.Button("Refresh", EditorStyles.toolbarButton, GUILayout.Width(60)))
                 {
                     FlexVaultStateCache.RefreshAsync(skipScan: false, force: true);
+                    if (m_currentTab == Tab.History)
+                    {
+                        LoadHistoryEntries();
+                    }
                 }
                 GUI.enabled = true;
             }

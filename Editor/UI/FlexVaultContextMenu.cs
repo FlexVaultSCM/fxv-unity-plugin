@@ -282,7 +282,7 @@ namespace FlexVault.VCS.Editor.UI
                 if (string.IsNullOrEmpty(projectPath)) continue;
 
                 string repoRelative = FlexVaultMetaHelper.ToRepoRelativePath(projectPath);
-                entriesToAdd.Add(repoRelative);
+                entriesToAdd.Add(AssetDatabase.IsValidFolder(projectPath) ? repoRelative + "/" : repoRelative);
                 entriesToAdd.Add(FlexVaultMetaHelper.GetCompanionMetaPath(repoRelative));
             }
 

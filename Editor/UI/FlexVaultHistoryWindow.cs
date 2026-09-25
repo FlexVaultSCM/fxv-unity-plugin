@@ -251,8 +251,16 @@ namespace FlexVault.VCS.Editor.UI
                     ? new Color(0.20f, 0.45f, 0.28f, 1f)
                     : new Color(0.72f, 0.92f, 0.78f, 1f);
             }
-            var bgStyle = (index % 2 == 0) ? EditorStyles.helpBox : EditorStyles.textArea;
-            EditorGUILayout.BeginVertical(bgStyle);
+            else if (index % 2 != 0)
+            {
+                // Zebra-stripe via a background tint rather than swapping GUIStyles: helpBox and
+                // textArea have different internal padding, which was shifting every column's
+                // content left/right depending on which style a given row landed on.
+                GUI.backgroundColor = EditorGUIUtility.isProSkin
+                    ? new Color(0.85f, 0.85f, 0.85f, 1f)
+                    : new Color(0.93f, 0.93f, 0.93f, 1f);
+            }
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
             {
                 EditorGUILayout.BeginHorizontal();
