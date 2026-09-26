@@ -27,7 +27,11 @@ namespace FlexVault.VCS.Editor.UI
         // per-frame to freeze the editor; cap input length well below that.
         private const int MaxCommitDescriptionLength = 2000;
 
-        private static float ChangesRowHeight => EditorGUIUtility.singleLineHeight + EditorGUIUtility.standardVerticalSpacing;
+        // Rows use a zero-margin style: a GUIStyle.none group inherits its children's margins,
+        // which adds a gap between rows and breaks the fixed-pitch math in DrawChangesTab.
+        // The extra 4px leaves room for the children's own 2px top/bottom margins.
+        private static readonly GUIStyle s_changesRowStyle = new GUIStyle { margin = new RectOffset(), padding = new RectOffset() };
+        private static float ChangesRowHeight => EditorGUIUtility.singleLineHeight + 4f;
 
         private Tab m_currentTab = Tab.Changes;
         private Vector2 m_scrollPos;
@@ -388,7 +392,7 @@ namespace FlexVault.VCS.Editor.UI
                     for (int i = firstRow; i < lastRow; i++)
                     {
                         var item = displayFiles[i];
-                        EditorGUILayout.BeginHorizontal(GUILayout.Height(rowHeight));
+                        EditorGUILayout.BeginHorizontal(s_changesRowStyle, GUILayout.Height(rowHeight));
                         {
                             DrawStateBadge(item.EffectiveState);
 
