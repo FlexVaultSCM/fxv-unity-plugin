@@ -27,8 +27,15 @@ namespace FlexVault.VCS.Editor.UI
         // per-frame to freeze the editor; cap input length well below that.
         private const int MaxCommitDescriptionLength = 2000;
 
+        // Rows use a zero-margin style: a GUIStyle.none group inherits its children's margins,
+        // which adds a gap between rows and breaks the fixed-pitch math in DrawChangesTab.
+        // The extra 4px leaves room for the children's own 2px top/bottom margins.
+        private static readonly GUIStyle s_changesRowStyle = new GUIStyle { margin = new RectOffset(), padding = new RectOffset() };
+        private static float ChangesRowHeight => EditorGUIUtility.singleLineHeight + 4f;
+
         private Tab m_currentTab = Tab.Changes;
         private Vector2 m_scrollPos;
+        private float m_changesViewHeight = 400f;
         private Vector2 m_historyScrollPos;
         private string m_commitDescription = string.Empty;
         private List<CommitRefJson> m_historyEntries = new List<CommitRefJson>();
@@ -370,11 +377,22 @@ namespace FlexVault.VCS.Editor.UI
 
             if (displayFiles.Count > 0)
             {
+                // Only lay out rows inside the viewport. Drawing every row made each IMGUI event
+                // (every keystroke in the commit description) O(file count). The range is computed
+                // from the scroll position before BeginScrollView so Layout and the event that
+                // follows it see the same controls.
+                float rowHeight = ChangesRowHeight;
+                int firstRow = Mathf.Clamp(Mathf.FloorToInt(m_scrollPos.y / rowHeight), 0, displayFiles.Count);
+                int visibleRows = Mathf.CeilToInt(m_changesViewHeight / rowHeight) + 2;
+                int lastRow = Mathf.Min(displayFiles.Count, firstRow + visibleRows);
+
                 m_scrollPos = EditorGUILayout.BeginScrollView(m_scrollPos, GUILayout.ExpandHeight(true));
                 {
-                    foreach (var item in displayFiles)
+                    GUILayout.Space(firstRow * rowHeight);
+                    for (int i = firstRow; i < lastRow; i++)
                     {
-                        EditorGUILayout.BeginHorizontal();
+                        var item = displayFiles[i];
+                        EditorGUILayout.BeginHorizontal(s_changesRowStyle, GUILayout.Height(rowHeight));
                         {
                             DrawStateBadge(item.EffectiveState);
 
@@ -413,8 +431,13 @@ namespace FlexVault.VCS.Editor.UI
                         }
                         EditorGUILayout.EndHorizontal();
                     }
+                    GUILayout.Space((displayFiles.Count - lastRow) * rowHeight);
                 }
                 EditorGUILayout.EndScrollView();
+                if (Event.current.type == EventType.Repaint)
+                {
+                    m_changesViewHeight = GUILayoutUtility.GetLastRect().height;
+                }
             }
 
             bool isBehindRemote = syncStatus != null && !syncStatus.UpToDate && syncStatus.RevisionsBehind > 0;
