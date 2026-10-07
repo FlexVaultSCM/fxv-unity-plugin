@@ -368,5 +368,76 @@ namespace FlexVault.VCS.Editor.Tests
             Assert.IsTrue(b1.LocalOnly);
             Assert.IsFalse(b1.Retired);
         }
+
+        [Test]
+        public void BranchNewPayload_UserBranch_Deserialization_ParsesCorrectly()
+        {
+            string json = @"{
+                ""program"": {
+                    ""name"": ""fxv"",
+                    ""version"": ""0.11.2"",
+                    ""executable"": ""fxv.exe"",
+                    ""arguments"": [""branch"", ""new"", ""feature-a"", ""--format"", ""json""],
+                    ""invoked_at"": ""2026-10-07T12:00:00Z""
+                },
+                ""message"": {
+                    ""kind"": ""branch-new"",
+                    ""version"": ""1.0"",
+                    ""payload"": {
+                        ""branch"": ""alice/feature-a"",
+                        ""branch_type"": ""user"",
+                        ""revision"": ""alice/feature-a.-.1"",
+                        ""source_revision"": ""main.5"",
+                        ""switched"": true
+                    }
+                }
+            }";
+
+            var envelope = JsonConvert.DeserializeObject<OutputEnvelope<BranchNewPayload>>(json);
+            Assert.IsNotNull(envelope);
+            Assert.AreEqual("branch-new", envelope.Message.Kind);
+            var payload = envelope.Message.Payload;
+            Assert.IsNotNull(payload);
+            Assert.AreEqual("alice/feature-a", payload.Branch);
+            Assert.AreEqual("user", payload.BranchType);
+            Assert.AreEqual("alice/feature-a.-.1", payload.Revision);
+            Assert.AreEqual("main.5", payload.SourceRevision);
+            Assert.IsTrue(payload.Switched);
+        }
+
+        [Test]
+        public void BranchNewPayload_GlobalEmptyBranch_Deserialization_ParsesCorrectly()
+        {
+            string json = @"{
+                ""program"": {
+                    ""name"": ""fxv"",
+                    ""version"": ""0.11.2"",
+                    ""executable"": ""fxv.exe"",
+                    ""arguments"": [""branch"", ""new"", ""main"", ""--global"", ""--empty"", ""--format"", ""json""],
+                    ""invoked_at"": ""2026-10-07T12:00:00Z""
+                },
+                ""message"": {
+                    ""kind"": ""branch-new"",
+                    ""version"": ""1.0"",
+                    ""payload"": {
+                        ""branch"": ""main"",
+                        ""branch_type"": ""global"",
+                        ""revision"": ""main.-.1"",
+                        ""switched"": false
+                    }
+                }
+            }";
+
+            var envelope = JsonConvert.DeserializeObject<OutputEnvelope<BranchNewPayload>>(json);
+            Assert.IsNotNull(envelope);
+            Assert.AreEqual("branch-new", envelope.Message.Kind);
+            var payload = envelope.Message.Payload;
+            Assert.IsNotNull(payload);
+            Assert.AreEqual("main", payload.Branch);
+            Assert.AreEqual("global", payload.BranchType);
+            Assert.AreEqual("main.-.1", payload.Revision);
+            Assert.IsNull(payload.SourceRevision);
+            Assert.IsFalse(payload.Switched);
+        }
     }
 }

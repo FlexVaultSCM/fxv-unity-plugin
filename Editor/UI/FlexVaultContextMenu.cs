@@ -22,6 +22,12 @@ namespace FlexVault.VCS.Editor.UI
             FlexVaultStateCache.RefreshAsync();
         }
 
+        [MenuItem(MenuRoot + "New Branch...", false, 102)]
+        public static void NewBranch()
+        {
+            FlexVaultCreateBranchDialog.ShowWindow();
+        }
+
         [MenuItem(MenuRoot + "Revert Selected", false, 120)]
         public static async void RevertSelected()
         {

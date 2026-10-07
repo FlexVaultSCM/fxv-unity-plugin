@@ -55,12 +55,12 @@ Navigate to **Edit > Project Settings > Version Control > FlexVault**:
   * **Publish**: Prompts for a commit description and publishes the entire workspace draft (`fxv snapshot` followed by `fxv publish`).
   * **Revert**: Reverts selected assets and their companion `.meta` files to the published base.
   * **Sync View**: Displays revision status (revisions behind remote HEAD) and provides one-click workspace synchronization (`fxv sync`).
-  * **Branch Switching**: View and switch branches directly from the toolbar menu (`fxv branch switch`), with safety pre-checks and asset re-scanning.
+  * **Branch Management**: Create new branches (`fxv branch new`) from current state, specific revisions, or empty workspaces with user or global scope; view and switch branches directly from the toolbar menu (`fxv branch switch`), with safety pre-checks and asset re-scanning.
   * **History & Revision Jumping**: Shows recent branch commits with timestamps, author attribution, revision comparison, and one-click workspace state switching (`fxv goto`).
 * **Project Window Badges**:
   * Displays visual status indicators on items in the Project window (`+` Added, `~` Modified, `-` Deleted, `!` Conflicted).
 * **Right-Click Context Menus** (`Assets > FlexVault`):
-  * Quick access to **Diff Selected Against Base**, **Resolve Conflict** (Keep Mine / Take Theirs), **Ignore Selected** (Add to `.fxvignore` and `.gitignore`), **History**, **Revert Selected**, **Refresh Status**, and **Open FlexVault Window**.
+  * Quick access to **Diff Selected Against Base**, **Resolve Conflict** (Keep Mine / Take Theirs), **Ignore Selected** (Add to `.fxvignore` and `.gitignore`), **History**, **New Branch**, **Revert Selected**, **Refresh Status**, and **Open FlexVault Window**.
 * **Engine Lifecycle & Mutation Safety**:
   * Enforces asset and `.meta` companion atomicity (including recursive folder expansion).
   * Safety guards prevent workspace mutations while in Play Mode or when scenes have unsaved edits.

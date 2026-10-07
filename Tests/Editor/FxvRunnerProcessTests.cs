@@ -100,6 +100,46 @@ namespace FlexVault.VCS.Editor.Tests
             CollectionAssert.DoesNotContain(args, "--plugin-version");
         }
 
+        private static List<string> InvokeBuildBranchNewArgs(
+            string branchName,
+            string fromRevision = null,
+            bool empty = false,
+            bool global = false,
+            bool noSwitch = false)
+        {
+            var method = typeof(FxvRunner).GetMethod("BuildBranchNewArgs", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.IsNotNull(method, "BuildBranchNewArgs method should exist on FxvRunner");
+            return (List<string>)method.Invoke(null, new object[] { branchName, fromRevision, empty, global, noSwitch });
+        }
+
+        [Test]
+        public void BuildBranchNewArgs_BasicName_ReturnsCorrectArgs()
+        {
+            var args = InvokeBuildBranchNewArgs("feature-x");
+            CollectionAssert.AreEqual(new[] { "branch", "new", "feature-x" }, args);
+        }
+
+        [Test]
+        public void BuildBranchNewArgs_WithFromRevision_IncludesFromFlag()
+        {
+            var args = InvokeBuildBranchNewArgs("feature-x", fromRevision: "main.5");
+            CollectionAssert.AreEqual(new[] { "branch", "new", "feature-x", "--from", "main.5" }, args);
+        }
+
+        [Test]
+        public void BuildBranchNewArgs_WithEmpty_IncludesEmptyFlag()
+        {
+            var args = InvokeBuildBranchNewArgs("feature-x", empty: true);
+            CollectionAssert.AreEqual(new[] { "branch", "new", "feature-x", "--empty" }, args);
+        }
+
+        [Test]
+        public void BuildBranchNewArgs_WithGlobalAndNoSwitch_IncludesBothFlags()
+        {
+            var args = InvokeBuildBranchNewArgs("feature-x", fromRevision: "main.10", global: true, noSwitch: true);
+            CollectionAssert.AreEqual(new[] { "branch", "new", "feature-x", "--from", "main.10", "--global", "--no-switch" }, args);
+        }
+
         [Test]
         public async Task RunCommandAsync_NonExistentBinary_FailsGracefully()
         {

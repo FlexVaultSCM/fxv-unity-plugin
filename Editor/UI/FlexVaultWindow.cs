@@ -887,6 +887,13 @@ namespace FlexVault.VCS.Editor.UI
                 GUILayout.FlexibleSpace();
                 string[] filterLabels = { "All", "Drafts", "Published" };
                 m_historyFilter = (HistoryFilter)GUILayout.Toolbar((int)m_historyFilter, filterLabels, EditorStyles.toolbarButton, GUILayout.Width(180));
+
+                GUI.enabled = !m_isOperating;
+                if (GUILayout.Button("New Branch...", EditorStyles.toolbarButton, GUILayout.Width(85)))
+                {
+                    FlexVaultCreateBranchDialog.ShowWindow();
+                }
+                GUI.enabled = true;
             }
             EditorGUILayout.EndHorizontal();
 
@@ -1012,6 +1019,23 @@ namespace FlexVault.VCS.Editor.UI
                         }
                     }
                     EditorGUILayout.EndVertical();
+
+                    Rect rowRect = GUILayoutUtility.GetLastRect();
+                    Event evt = Event.current;
+                    if (evt != null && evt.type == EventType.ContextClick && rowRect.Contains(evt.mousePosition))
+                    {
+                        var contextMenu = new GenericMenu();
+                        string targetRev = entry.RevisionDisplay;
+                        contextMenu.AddItem(new GUIContent($"Create Branch From {targetRev}..."), false, () => FlexVaultCreateBranchDialog.ShowWindow(targetRev));
+                        if (!isCurrent)
+                        {
+                            contextMenu.AddItem(new GUIContent($"Go To Revision {targetRev}"), false, () => ExecuteGoto(targetRev));
+                        }
+                        contextMenu.AddItem(new GUIContent("Copy Revision Spec"), false, () => EditorGUIUtility.systemCopyBuffer = targetRev);
+                        contextMenu.ShowAsContext();
+                        evt.Use();
+                    }
+
                     GUI.backgroundColor = prevBg;
                     GUILayout.Space(2f);
                 }
@@ -1256,6 +1280,9 @@ namespace FlexVault.VCS.Editor.UI
             var menu = new GenericMenu();
             var branches = FlexVaultStateCache.CachedBranches;
             string currentBranch = FlexVaultStateCache.LatestStatus?.CurrentBranch ?? string.Empty;
+
+            menu.AddItem(new GUIContent("New Branch..."), false, () => FlexVaultCreateBranchDialog.ShowWindow());
+            menu.AddSeparator("");
 
             if (branches == null || branches.Count == 0)
             {
