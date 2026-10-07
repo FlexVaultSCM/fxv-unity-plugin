@@ -30,7 +30,9 @@ namespace FlexVault.VCS.Editor.UI
         // Rows use a zero-margin style: a GUIStyle.none group inherits its children's margins,
         // which adds a gap between rows and breaks the fixed-pitch math in DrawChangesTab.
         // The extra 4px leaves room for the children's own 2px top/bottom margins.
-        private static readonly GUIStyle s_changesRowStyle = new GUIStyle { margin = new RectOffset(), padding = new RectOffset() };
+        // Lazily initialized to avoid Unity serialization errors (AssignRectOffset during DockArea deserialization).
+        private static GUIStyle s_changesRowStyle;
+        private static GUIStyle ChangesRowStyle => s_changesRowStyle ?? (s_changesRowStyle = new GUIStyle { margin = new RectOffset(), padding = new RectOffset() });
         private static float ChangesRowHeight => EditorGUIUtility.singleLineHeight + 4f;
 
         private Tab m_currentTab = Tab.Changes;
@@ -392,7 +394,7 @@ namespace FlexVault.VCS.Editor.UI
                     for (int i = firstRow; i < lastRow; i++)
                     {
                         var item = displayFiles[i];
-                        EditorGUILayout.BeginHorizontal(s_changesRowStyle, GUILayout.Height(rowHeight));
+                        EditorGUILayout.BeginHorizontal(ChangesRowStyle, GUILayout.Height(rowHeight));
                         {
                             DrawStateBadge(item.EffectiveState);
 
