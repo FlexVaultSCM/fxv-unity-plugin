@@ -69,8 +69,8 @@ namespace FlexVault.VCS.Editor.UI
             var window = CreateInstance<FlexVaultCreateBranchDialog>();
             window.titleContent = new GUIContent("Create Branch");
             window.m_fromRevision = fromRevision ?? "";
-            const float windowWidth = 460f;
-            const float windowHeight = 425f;
+            const float windowWidth = 450f;
+            const float windowHeight = 410f;
             window.minSize = new Vector2(windowWidth, windowHeight);
             window.maxSize = new Vector2(windowWidth, windowHeight);
             s_instance = window;
@@ -222,9 +222,11 @@ namespace FlexVault.VCS.Editor.UI
                                     ? (EditorGUIUtility.isProSkin ? new Color(0.4f, 0.75f, 1f) : new Color(0.1f, 0.45f, 0.85f))
                                     : (EditorGUIUtility.isProSkin ? new Color(0.95f, 0.7f, 0.25f) : new Color(0.75f, 0.45f, 0.1f));
 
-                                m_specBadgeStyle.normal.textColor = badgeColor;
+                                Color prevContentColor = GUI.contentColor;
+                                GUI.contentColor = badgeColor;
                                 string badgeText = m_isGlobal ? "global" : $"user ({userPrefix})";
                                 GUILayout.Label(badgeText, m_specBadgeStyle);
+                                GUI.contentColor = prevContentColor;
                             }
                             EditorGUILayout.EndHorizontal();
                         }
