@@ -27,8 +27,24 @@ namespace FlexVault.VCS.Editor.UI
         // per-frame to freeze the editor; cap input length well below that.
         private const int MaxCommitDescriptionLength = 2000;
 
+        private const float HistoryColToggleWidth = 24f;
+        private const float HistoryColTypeWidth = 85f;
+        private const float HistoryColRevisionWidth = 150f;
+        private const float HistoryColAuthorWidth = 110f;
+        private const float HistoryColDateWidth = 125f;
+        private const float HistoryColActionWidth = 65f;
+
+        // Rows use a zero-margin style: a GUIStyle.none group inherits its children's margins,
+        // which adds a gap between rows and breaks the fixed-pitch math in DrawChangesTab.
+        // The extra 4px leaves room for the children's own 2px top/bottom margins.
+        // Lazily initialized to avoid Unity serialization errors (AssignRectOffset during DockArea deserialization).
+        private static GUIStyle s_changesRowStyle;
+        private static GUIStyle ChangesRowStyle => s_changesRowStyle ?? (s_changesRowStyle = new GUIStyle { margin = new RectOffset(), padding = new RectOffset() });
+        private static float ChangesRowHeight => EditorGUIUtility.singleLineHeight + 4f;
+
         private Tab m_currentTab = Tab.Changes;
         private Vector2 m_scrollPos;
+        private float m_changesViewHeight = 400f;
         private Vector2 m_historyScrollPos;
         private string m_commitDescription = string.Empty;
         private List<CommitRefJson> m_historyEntries = new List<CommitRefJson>();
@@ -370,11 +386,22 @@ namespace FlexVault.VCS.Editor.UI
 
             if (displayFiles.Count > 0)
             {
+                // Only lay out rows inside the viewport. Drawing every row made each IMGUI event
+                // (every keystroke in the commit description) O(file count). The range is computed
+                // from the scroll position before BeginScrollView so Layout and the event that
+                // follows it see the same controls.
+                float rowHeight = ChangesRowHeight;
+                int firstRow = Mathf.Clamp(Mathf.FloorToInt(m_scrollPos.y / rowHeight), 0, displayFiles.Count);
+                int visibleRows = Mathf.CeilToInt(m_changesViewHeight / rowHeight) + 2;
+                int lastRow = Mathf.Min(displayFiles.Count, firstRow + visibleRows);
+
                 m_scrollPos = EditorGUILayout.BeginScrollView(m_scrollPos, GUILayout.ExpandHeight(true));
                 {
-                    foreach (var item in displayFiles)
+                    GUILayout.Space(firstRow * rowHeight);
+                    for (int i = firstRow; i < lastRow; i++)
                     {
-                        EditorGUILayout.BeginHorizontal();
+                        var item = displayFiles[i];
+                        EditorGUILayout.BeginHorizontal(ChangesRowStyle, GUILayout.Height(rowHeight));
                         {
                             DrawStateBadge(item.EffectiveState);
 
@@ -413,8 +440,13 @@ namespace FlexVault.VCS.Editor.UI
                         }
                         EditorGUILayout.EndHorizontal();
                     }
+                    GUILayout.Space((displayFiles.Count - lastRow) * rowHeight);
                 }
                 EditorGUILayout.EndScrollView();
+                if (Event.current.type == EventType.Repaint)
+                {
+                    m_changesViewHeight = GUILayoutUtility.GetLastRect().height;
+                }
             }
 
             bool isBehindRemote = syncStatus != null && !syncStatus.UpToDate && syncStatus.RevisionsBehind > 0;
@@ -883,18 +915,22 @@ namespace FlexVault.VCS.Editor.UI
 
             EditorGUILayout.BeginHorizontal();
             {
-                GUILayout.Space(24f + 2f);
-                GUILayout.Label("Type", EditorStyles.miniBoldLabel, GUILayout.Width(75));
-                GUILayout.Label("Revision", EditorStyles.miniBoldLabel, GUILayout.Width(110));
-                GUILayout.Label("Author", EditorStyles.miniBoldLabel, GUILayout.Width(100));
-                GUILayout.Label("Date", EditorStyles.miniBoldLabel, GUILayout.Width(110));
+                float helpBoxLeft = EditorStyles.helpBox.margin.left + EditorStyles.helpBox.padding.left;
+                float helpBoxRight = EditorStyles.helpBox.margin.right + EditorStyles.helpBox.padding.right;
+
+                GUILayout.Space(helpBoxLeft + HistoryColToggleWidth + 4f);
+                GUILayout.Label("Type", EditorStyles.miniBoldLabel, GUILayout.Width(HistoryColTypeWidth));
+                GUILayout.Label("Revision", EditorStyles.miniBoldLabel, GUILayout.Width(HistoryColRevisionWidth));
+                GUILayout.Label("Author", EditorStyles.miniBoldLabel, GUILayout.Width(HistoryColAuthorWidth));
+                GUILayout.Label("Date", EditorStyles.miniBoldLabel, GUILayout.Width(HistoryColDateWidth));
                 GUILayout.FlexibleSpace();
-                GUILayout.Label("", EditorStyles.miniBoldLabel, GUILayout.Width(65));
+                GUILayout.Space(HistoryColActionWidth + helpBoxRight + 4f);
             }
             EditorGUILayout.EndHorizontal();
 
             m_historyScrollPos = EditorGUILayout.BeginScrollView(m_historyScrollPos, GUILayout.ExpandHeight(true));
             {
+                int visibleIndex = 0;
                 for (int i = 0; i < m_historyEntries.Count; i++)
                 {
                     var entry = m_historyEntries[i];
@@ -909,15 +945,24 @@ namespace FlexVault.VCS.Editor.UI
                             ? new Color(0.20f, 0.45f, 0.28f, 1f)
                             : new Color(0.72f, 0.92f, 0.78f, 1f);
                     }
-                    var bg = (i % 2 == 0) ? EditorStyles.helpBox : EditorStyles.textArea;
-                    EditorGUILayout.BeginVertical(bg);
+                    else if (visibleIndex % 2 != 0)
+                    {
+                        // Zebra-stripe via a background tint rather than swapping GUIStyles: helpBox and
+                        // textArea have different internal padding, which was shifting every column's
+                        // content left/right depending on which style a given row landed on.
+                        GUI.backgroundColor = EditorGUIUtility.isProSkin
+                            ? new Color(0.85f, 0.85f, 0.85f, 1f)
+                            : new Color(0.93f, 0.93f, 0.93f, 1f);
+                    }
+                    visibleIndex++;
 
+                    EditorGUILayout.BeginVertical(EditorStyles.helpBox);
                     {
                         EditorGUILayout.BeginHorizontal();
                         {
                             bool isExpanded = m_expandedRevisions.Contains(entry.RevisionDisplay);
                             string arrow = isExpanded ? "\u25BC" : "\u25B6";
-                            if (GUILayout.Button(arrow, EditorStyles.miniButton, GUILayout.Width(24)))
+                            if (GUILayout.Button(arrow, EditorStyles.miniButton, GUILayout.Width(HistoryColToggleWidth)))
                             {
                                 if (isExpanded)
                                 {
@@ -936,21 +981,21 @@ namespace FlexVault.VCS.Editor.UI
 
                             Color prevCol = GUI.contentColor;
                             GUI.contentColor = col;
-                            GUILayout.Label(tag, EditorStyles.miniBoldLabel, GUILayout.Width(75));
+                            GUILayout.Label(tag, EditorStyles.miniBoldLabel, GUILayout.Width(HistoryColTypeWidth));
                             GUI.contentColor = prevCol;
 
-                            GUILayout.Label(entry.RevisionDisplay, EditorStyles.boldLabel, GUILayout.Width(110));
-                            GUILayout.Label(entry.AuthorDisplayName ?? entry.AuthorId ?? "Unknown", EditorStyles.miniLabel, GUILayout.Width(100));
+                            GUILayout.Label(entry.RevisionDisplay, EditorStyles.boldLabel, GUILayout.Width(HistoryColRevisionWidth));
+                            GUILayout.Label(entry.AuthorDisplayName ?? entry.AuthorId ?? "Unknown", EditorStyles.miniLabel, GUILayout.Width(HistoryColAuthorWidth));
 
                             string date = entry.TimestampMillisSinceEpochUtc > 0
                                 ? entry.TimestampUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
                                 : string.Empty;
-                            GUILayout.Label(date, EditorStyles.miniLabel, GUILayout.Width(110));
+                            GUILayout.Label(date, EditorStyles.miniLabel, GUILayout.Width(HistoryColDateWidth));
 
                             GUILayout.FlexibleSpace();
 
                             GUI.enabled = !isCurrent && !m_isOperating;
-                            if (GUILayout.Button(isCurrent ? "Current" : "Go To", EditorStyles.miniButton, GUILayout.Width(65)))
+                            if (GUILayout.Button(isCurrent ? "Current" : "Go To", EditorStyles.miniButton, GUILayout.Width(HistoryColActionWidth)))
                             {
                                 ExecuteGoto(entry.RevisionDisplay);
                             }
