@@ -21,6 +21,38 @@ namespace FlexVault.VCS.Editor.UI
         private bool m_isOperating = false;
         private bool m_initialFocusSet = false;
 
+        private GUIStyle m_specBoxStyle;
+        private GUIStyle m_specLabelStyle;
+        private GUIStyle m_specBadgeStyle;
+
+        private void EnsureStyles()
+        {
+            if (m_specBoxStyle == null)
+            {
+                m_specBoxStyle = new GUIStyle(EditorStyles.helpBox)
+                {
+                    padding = new RectOffset(8, 8, 3, 3),
+                    margin = new RectOffset(0, 0, 1, 1)
+                };
+            }
+            if (m_specLabelStyle == null)
+            {
+                m_specLabelStyle = new GUIStyle(EditorStyles.label)
+                {
+                    fontStyle = FontStyle.Bold,
+                    fontSize = 11,
+                    alignment = TextAnchor.MiddleLeft
+                };
+            }
+            if (m_specBadgeStyle == null)
+            {
+                m_specBadgeStyle = new GUIStyle(EditorStyles.miniBoldLabel)
+                {
+                    alignment = TextAnchor.MiddleRight
+                };
+            }
+        }
+
         public static void ShowWindow(string fromRevision = null)
         {
             if (s_instance != null)
@@ -37,8 +69,10 @@ namespace FlexVault.VCS.Editor.UI
             var window = CreateInstance<FlexVaultCreateBranchDialog>();
             window.titleContent = new GUIContent("Create Branch");
             window.m_fromRevision = fromRevision ?? "";
-            window.minSize = new Vector2(460, 390);
-            window.maxSize = new Vector2(540, 430);
+            const float windowWidth = 460f;
+            const float windowHeight = 425f;
+            window.minSize = new Vector2(windowWidth, windowHeight);
+            window.maxSize = new Vector2(windowWidth, windowHeight);
             s_instance = window;
             window.ShowUtility();
         }
@@ -167,25 +201,32 @@ namespace FlexVault.VCS.Editor.UI
                             m_initialFocusSet = true;
                         }
 
-                        // Full branch preview box
-                        string previewName;
-                        if (m_isGlobal)
-                        {
-                            previewName = !string.IsNullOrWhiteSpace(m_branchName) ? m_branchName.Trim() : "<name>";
-                        }
-                        else
-                        {
-                            string userPrefix = !string.IsNullOrEmpty(currentUser) ? currentUser : "<user>";
-                            previewName = !string.IsNullOrWhiteSpace(m_branchName) ? $"{userPrefix}/{m_branchName.Trim()}" : $"{userPrefix}/<name>";
-                        }
+                        // Full branch preview row
+                        string userPrefix = !string.IsNullOrEmpty(currentUser) ? currentUser : "<user>";
+                        string previewName = m_isGlobal
+                            ? (!string.IsNullOrWhiteSpace(m_branchName) ? m_branchName.Trim() : "<name>")
+                            : (!string.IsNullOrWhiteSpace(m_branchName) ? $"{userPrefix}/{m_branchName.Trim()}" : $"{userPrefix}/<name>");
 
-                        EditorGUILayout.Space(2);
-                        EditorGUILayout.BeginHorizontal(EditorStyles.textField);
+                        EditorGUILayout.Space(3);
+                        EditorGUILayout.BeginHorizontal();
                         {
-                            GUILayout.Label("Full Spec:", EditorStyles.miniBoldLabel, GUILayout.Width(60));
-                            GUILayout.Label(previewName, EditorStyles.miniLabel);
-                            GUILayout.FlexibleSpace();
-                            GUILayout.Label(m_isGlobal ? "global" : "user", EditorStyles.miniLabel);
+                            EditorGUILayout.PrefixLabel(new GUIContent("Full Spec", "The fully qualified branch identifier that will be created in FlexVault."));
+
+                            EnsureStyles();
+                            EditorGUILayout.BeginHorizontal(m_specBoxStyle, GUILayout.Height(22));
+                            {
+                                GUILayout.Label(previewName, m_specLabelStyle);
+                                GUILayout.FlexibleSpace();
+
+                                Color badgeColor = m_isGlobal
+                                    ? (EditorGUIUtility.isProSkin ? new Color(0.4f, 0.75f, 1f) : new Color(0.1f, 0.45f, 0.85f))
+                                    : (EditorGUIUtility.isProSkin ? new Color(0.95f, 0.7f, 0.25f) : new Color(0.75f, 0.45f, 0.1f));
+
+                                m_specBadgeStyle.normal.textColor = badgeColor;
+                                string badgeText = m_isGlobal ? "global" : $"user ({userPrefix})";
+                                GUILayout.Label(badgeText, m_specBadgeStyle);
+                            }
+                            EditorGUILayout.EndHorizontal();
                         }
                         EditorGUILayout.EndHorizontal();
                     }
