@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.2](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.7.1...v0.7.2) (2026-10-07)
+
+
+### Bug Fixes
+
+* editor UI fixes ([#36](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/36)) ([7bef846](https://github.com/FlexVaultSCM/fxv-unity-plugin/commit/7bef84613e3946e68b9879276906466d71ee3cfe))
+
+
+### Documentation
+
+* remove tarball URL from git URL install instructions ([#34](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/34)) ([ddf2428](https://github.com/FlexVaultSCM/fxv-unity-plugin/commit/ddf2428d7a8838b594edf41f2c17c5de0b70f552))
+
 ## [0.7.1](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.7.0...v0.7.1) (2026-09-25)
 
 
