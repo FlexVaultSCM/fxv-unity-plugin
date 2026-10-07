@@ -141,6 +141,17 @@ namespace FlexVault.VCS.Editor.Tests
         }
 
         [Test]
+        public void BuildBranchNewArgs_WithEmptyAndFromRevision_ThrowsArgumentException()
+        {
+            var ex = Assert.Throws<TargetInvocationException>(() =>
+            {
+                InvokeBuildBranchNewArgs("feature-x", fromRevision: "main.5", empty: true);
+            });
+            Assert.IsInstanceOf<ArgumentException>(ex.InnerException);
+            StringAssert.Contains("mutually exclusive", ex.InnerException.Message.ToLowerInvariant());
+        }
+
+        [Test]
         public async Task RunCommandAsync_NonExistentBinary_FailsGracefully()
         {
             string invalidBinary = Path.Combine(Path.GetTempPath(), "nonexistent_fxv_dir", "definitely_not_a_binary");

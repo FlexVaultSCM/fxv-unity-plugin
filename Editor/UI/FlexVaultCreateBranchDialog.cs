@@ -37,37 +37,56 @@ namespace FlexVault.VCS.Editor.UI
             var window = CreateInstance<FlexVaultCreateBranchDialog>();
             window.titleContent = new GUIContent("Create Branch");
             window.m_fromRevision = fromRevision ?? "";
-            window.minSize = new Vector2(420, 260);
-            window.maxSize = new Vector2(520, 300);
+            window.minSize = new Vector2(460, 390);
+            window.maxSize = new Vector2(540, 430);
             s_instance = window;
             window.ShowUtility();
         }
 
-        private void OnDestroy()
+        private void OnEnable()
         {
+            s_instance = this;
+            FlexVaultStateCache.OnStateChanged += OnStateCacheChanged;
+            if (FlexVaultStateCache.LatestStatus == null)
+            {
+                FlexVaultStateCache.RefreshAsync(skipScan: true);
+            }
+        }
+
+        private void OnDisable()
+        {
+            FlexVaultStateCache.OnStateChanged -= OnStateCacheChanged;
             if (s_instance == this)
             {
                 s_instance = null;
             }
         }
 
+        private void OnStateCacheChanged()
+        {
+            if (this != null)
+            {
+                Repaint();
+            }
+        }
+
         public static bool IsValidBranchName(string name, out string error)
         {
-            if (string.IsNullOrEmpty(name))
+            if (string.IsNullOrWhiteSpace(name))
             {
                 error = "Branch name cannot be empty.";
-                return false;
-            }
-
-            if (name.Length > MaxBranchNameLength)
-            {
-                error = $"Branch name cannot exceed {MaxBranchNameLength} characters.";
                 return false;
             }
 
             if (name.Trim() != name)
             {
                 error = "Branch name cannot have leading or trailing whitespace.";
+                return false;
+            }
+
+            if (name.Length > MaxBranchNameLength)
+            {
+                error = $"Branch name cannot exceed {MaxBranchNameLength} characters.";
                 return false;
             }
 
@@ -87,120 +106,203 @@ namespace FlexVault.VCS.Editor.UI
             return true;
         }
 
+        private static void DrawSeparator()
+        {
+            Rect rect = EditorGUILayout.GetControlRect(false, 1);
+            rect.height = 1;
+            EditorGUI.DrawRect(rect, EditorGUIUtility.isProSkin ? new Color(0.22f, 0.22f, 0.22f) : new Color(0.72f, 0.72f, 0.72f));
+        }
+
         private void OnGUI()
         {
-            GUILayout.Space(8);
-            EditorGUILayout.LabelField("Create New Branch", EditorStyles.boldLabel);
-            EditorGUILayout.Space(4);
-
             var status = FlexVaultStateCache.LatestStatus;
             string currentUser = status?.CurrentUser;
             string currentBranch = status?.CurrentBranch ?? "unknown";
+            string currentRevision = status?.HeadCommit?.LocalSnapshot?.RevisionDisplay
+                ?? (status?.SyncStatus?.SyncedRevision != null && status?.CurrentBranch != null
+                    ? $"{status.CurrentBranch}.{status.SyncStatus.SyncedRevision.Value}"
+                    : null);
 
-            if (string.IsNullOrEmpty(currentUser) && !m_isGlobal)
-            {
-                EditorGUILayout.HelpBox(
-                    "No user is logged in. User branches require a logged in user. Check 'Global branch' or log in first.",
-                    MessageType.Warning);
-            }
-
-            // Branch name field
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.PrefixLabel("Branch Name");
-            GUI.SetNextControlName("BranchNameField");
-            m_branchName = EditorGUILayout.TextField(m_branchName);
-            EditorGUILayout.EndHorizontal();
-
-            if (!m_initialFocusSet)
-            {
-                EditorGUI.FocusTextInControl("BranchNameField");
-                m_initialFocusSet = true;
-            }
-
-            // Branch naming hint
-            string previewName;
-            if (m_isGlobal)
-            {
-                previewName = !string.IsNullOrWhiteSpace(m_branchName) ? m_branchName.Trim() : "<name>";
-            }
-            else
-            {
-                string userPrefix = !string.IsNullOrEmpty(currentUser) ? currentUser : "<user>";
-                previewName = !string.IsNullOrWhiteSpace(m_branchName) ? $"{userPrefix}/{m_branchName.Trim()}" : $"{userPrefix}/<name>";
-            }
-            EditorGUILayout.LabelField("Full branch spec:", previewName, EditorStyles.miniLabel);
-
-            EditorGUILayout.Space(4);
-
-            // Starting revision / source
-            m_empty = EditorGUILayout.Toggle(new GUIContent("Empty Branch", "Start branch with no parent history or content."), m_empty);
-            if (m_empty)
-            {
-                EditorGUI.BeginDisabledGroup(true);
-                EditorGUILayout.TextField("Start Revision", "(none - starts empty)");
-                EditorGUI.EndDisabledGroup();
-            }
-            else
-            {
-                m_fromRevision = EditorGUILayout.TextField(new GUIContent("Start Revision", "Revision spec to branch from. Leave blank for current workspace revision."), m_fromRevision);
-                if (string.IsNullOrWhiteSpace(m_fromRevision))
-                {
-                    EditorGUILayout.LabelField(" ", $"Defaults to current revision on '{currentBranch}'", EditorStyles.miniLabel);
-                }
-            }
-
-            EditorGUILayout.Space(4);
-
-            // Options
-            m_isGlobal = EditorGUILayout.Toggle(new GUIContent("Global Branch", "Create a repository-wide branch instead of a user-owned branch."), m_isGlobal);
-            m_switchWorkspace = EditorGUILayout.Toggle(new GUIContent("Switch Workspace", "Move the workspace onto the new branch immediately upon creation."), m_switchWorkspace);
-
-            // Validation message
+            bool requiresLogin = string.IsNullOrEmpty(currentUser) && !m_isGlobal;
             bool isValid = IsValidBranchName(m_branchName, out string validationError);
-            if (!string.IsNullOrEmpty(m_branchName) && !isValid)
+            bool canSubmit = isValid && !requiresLogin && !m_isOperating;
+
+            EditorGUILayout.BeginVertical(new GUIStyle { padding = new RectOffset(16, 16, 14, 14) });
             {
-                EditorGUILayout.HelpBox(validationError, MessageType.Warning);
+                // Header
+                EditorGUILayout.BeginHorizontal();
+                {
+                    var headerStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 14 };
+                    GUILayout.Label("Create Branch", headerStyle);
+                    GUILayout.FlexibleSpace();
+                    GUILayout.Label($"Current: {currentBranch}", EditorStyles.miniLabel);
+                }
+                EditorGUILayout.EndHorizontal();
+
+                EditorGUILayout.LabelField("Create a new branch in the FlexVault repository.", EditorStyles.miniLabel);
+                EditorGUILayout.Space(6);
+                DrawSeparator();
+                EditorGUILayout.Space(8);
+
+                // Disable all form inputs while operating
+                EditorGUI.BeginDisabledGroup(m_isOperating);
+                {
+                    // Section 1: Branch Details Card
+                    EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                    {
+                        GUILayout.Label("Branch Details", EditorStyles.boldLabel);
+                        EditorGUILayout.Space(4);
+
+                        EditorGUILayout.BeginHorizontal();
+                        {
+                            EditorGUILayout.PrefixLabel("Branch Name");
+                            GUI.SetNextControlName("BranchNameField");
+                            m_branchName = EditorGUILayout.TextField(m_branchName);
+                        }
+                        EditorGUILayout.EndHorizontal();
+
+                        if (!m_initialFocusSet)
+                        {
+                            EditorGUI.FocusTextInControl("BranchNameField");
+                            m_initialFocusSet = true;
+                        }
+
+                        // Full branch preview box
+                        string previewName;
+                        if (m_isGlobal)
+                        {
+                            previewName = !string.IsNullOrWhiteSpace(m_branchName) ? m_branchName.Trim() : "<name>";
+                        }
+                        else
+                        {
+                            string userPrefix = !string.IsNullOrEmpty(currentUser) ? currentUser : "<user>";
+                            previewName = !string.IsNullOrWhiteSpace(m_branchName) ? $"{userPrefix}/{m_branchName.Trim()}" : $"{userPrefix}/<name>";
+                        }
+
+                        EditorGUILayout.Space(2);
+                        EditorGUILayout.BeginHorizontal(EditorStyles.textField);
+                        {
+                            GUILayout.Label("Full Spec:", EditorStyles.miniBoldLabel, GUILayout.Width(60));
+                            GUILayout.Label(previewName, EditorStyles.miniLabel);
+                            GUILayout.FlexibleSpace();
+                            GUILayout.Label(m_isGlobal ? "global" : "user", EditorStyles.miniLabel);
+                        }
+                        EditorGUILayout.EndHorizontal();
+                    }
+                    EditorGUILayout.EndVertical();
+
+                    EditorGUILayout.Space(6);
+
+                    // Section 2: Start Point Card
+                    EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                    {
+                        GUILayout.Label("Starting Point", EditorStyles.boldLabel);
+                        EditorGUILayout.Space(4);
+
+                        m_empty = EditorGUILayout.Toggle(new GUIContent("Empty Branch", "Start branch with no parent history or content."), m_empty);
+
+                        if (m_empty)
+                        {
+                            EditorGUI.BeginDisabledGroup(true);
+                            EditorGUILayout.TextField("Start Revision", "(none - starts empty)");
+                            EditorGUI.EndDisabledGroup();
+                        }
+                        else
+                        {
+                            m_fromRevision = EditorGUILayout.TextField(new GUIContent("Start Revision", "Revision spec to branch from. Leave blank for current workspace revision."), m_fromRevision);
+                            if (string.IsNullOrWhiteSpace(m_fromRevision))
+                            {
+                                string baseLabel = !string.IsNullOrEmpty(currentRevision) ? $"({currentRevision})" : $"on '{currentBranch}'";
+                                EditorGUILayout.LabelField(" ", $"Defaults to current revision {baseLabel}", EditorStyles.miniLabel);
+                            }
+                        }
+                    }
+                    EditorGUILayout.EndVertical();
+
+                    EditorGUILayout.Space(6);
+
+                    // Section 3: Options Card
+                    EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                    {
+                        GUILayout.Label("Options", EditorStyles.boldLabel);
+                        EditorGUILayout.Space(4);
+
+                        m_isGlobal = EditorGUILayout.Toggle(new GUIContent("Global Branch", "Create a repository-wide branch visible across the project instead of user-owned."), m_isGlobal);
+                        m_switchWorkspace = EditorGUILayout.Toggle(new GUIContent("Switch Workspace", "Move workspace to the new branch upon creation."), m_switchWorkspace);
+                    }
+                    EditorGUILayout.EndVertical();
+                }
+                EditorGUI.EndDisabledGroup();
+
+                // Validation or Login Warning
+                if (requiresLogin)
+                {
+                    EditorGUILayout.Space(4);
+                    EditorGUILayout.HelpBox("No user is logged in. User branches require a logged-in user. Check 'Global Branch' or log in first.", MessageType.Warning);
+                }
+                else if (!string.IsNullOrEmpty(m_branchName) && !isValid)
+                {
+                    EditorGUILayout.Space(4);
+                    EditorGUILayout.HelpBox(validationError, MessageType.Warning);
+                }
+
+                GUILayout.FlexibleSpace();
+
+                // Keyboard shortcut Enter
+                bool enterPressed = false;
+                Event e = Event.current;
+                if (e != null && e.isKey && e.keyCode == KeyCode.Return && e.type == EventType.KeyDown)
+                {
+                    enterPressed = true;
+                    e.Use();
+                }
+
+                // Action Buttons Footer
+                DrawSeparator();
+                EditorGUILayout.Space(8);
+
+                EditorGUILayout.BeginHorizontal();
+                {
+                    GUILayout.FlexibleSpace();
+
+                    GUI.enabled = !m_isOperating;
+                    if (GUILayout.Button("Cancel", GUILayout.Width(85), GUILayout.Height(24)))
+                    {
+                        Close();
+                        GUIUtility.ExitGUI();
+                    }
+                    GUI.enabled = true;
+
+                    GUILayout.Space(6);
+
+                    EditorGUI.BeginDisabledGroup(!canSubmit);
+                    string createButtonLabel = m_switchWorkspace ? "Create & Switch" : "Create";
+                    if (GUILayout.Button(createButtonLabel, GUILayout.Width(125), GUILayout.Height(24)) || (enterPressed && canSubmit))
+                    {
+                        ExecuteCreateBranch();
+                    }
+                    EditorGUI.EndDisabledGroup();
+                }
+                EditorGUILayout.EndHorizontal();
             }
-
-            GUILayout.FlexibleSpace();
-
-            // Keyboard shortcut Enter
-            bool enterPressed = false;
-            Event e = Event.current;
-            if (e != null && e.isKey && e.keyCode == KeyCode.Return && e.type == EventType.KeyDown)
-            {
-                enterPressed = true;
-                e.Use();
-            }
-
-            // Bottom action buttons
-            EditorGUILayout.BeginHorizontal();
-            GUILayout.FlexibleSpace();
-
-            if (GUILayout.Button("Cancel", GUILayout.Width(80)))
-            {
-                Close();
-                GUIUtility.ExitGUI();
-            }
-
-            EditorGUI.BeginDisabledGroup(m_isOperating || !isValid);
-            string createButtonLabel = m_switchWorkspace ? "Create & Switch" : "Create";
-            if (GUILayout.Button(createButtonLabel, GUILayout.Width(115)) || (enterPressed && isValid && !m_isOperating))
-            {
-                ExecuteCreateBranch();
-            }
-            EditorGUI.EndDisabledGroup();
-
-            EditorGUILayout.EndHorizontal();
-            GUILayout.Space(8);
+            EditorGUILayout.EndVertical();
         }
 
         private async void ExecuteCreateBranch()
         {
-            string branchName = m_branchName?.Trim();
-            if (!IsValidBranchName(branchName, out string validationError))
+            if (!IsValidBranchName(m_branchName, out string validationError))
             {
                 EditorUtility.DisplayDialog("Invalid Branch Name", validationError, "OK");
+                return;
+            }
+
+            string branchName = m_branchName.Trim();
+
+            var status = FlexVaultStateCache.LatestStatus;
+            string currentUser = status?.CurrentUser;
+            if (string.IsNullOrEmpty(currentUser) && !m_isGlobal)
+            {
+                EditorUtility.DisplayDialog("Login Required", "No user is logged in. Please check 'Global Branch' or log in with 'fxv login' before creating a user branch.", "OK");
                 return;
             }
 
@@ -210,9 +312,11 @@ namespace FlexVault.VCS.Editor.UI
             }
 
             m_isOperating = true;
+            bool lockedAssemblies = false;
             if (m_switchWorkspace)
             {
                 EditorApplication.LockReloadAssemblies();
+                lockedAssemblies = true;
             }
 
             try
@@ -220,26 +324,59 @@ namespace FlexVault.VCS.Editor.UI
                 EditorUtility.DisplayProgressBar("FlexVault", $"Creating branch '{branchName}'...", 0.5f);
 
                 string fromRev = (!m_empty && !string.IsNullOrWhiteSpace(m_fromRevision)) ? m_fromRevision.Trim() : null;
-                bool noSwitch = !m_switchWorkspace;
+
+                // If starting from a specific revision different from the current workspace revision,
+                // the fxv CLI requires --no-switch during creation, followed by a branch switch / goto.
+                string currentRevision = status?.HeadCommit?.LocalSnapshot?.RevisionDisplay
+                    ?? (status?.SyncStatus?.SyncedRevision != null && status?.CurrentBranch != null
+                        ? $"{status.CurrentBranch}.{status.SyncStatus.SyncedRevision.Value}"
+                        : null);
+
+                bool isHistoricalRevision = fromRev != null && !string.Equals(fromRev, currentRevision, StringComparison.OrdinalIgnoreCase);
+                bool needTwoStepSwitch = m_switchWorkspace && isHistoricalRevision;
+                bool createNoSwitch = !m_switchWorkspace || needTwoStepSwitch;
 
                 var result = await FxvRunner.BranchNewAsync(
                     branchName: branchName,
                     fromRevision: fromRev,
                     empty: m_empty,
                     global: m_isGlobal,
-                    noSwitch: noSwitch);
+                    noSwitch: createNoSwitch);
 
                 if (!result.Success)
                 {
+                    EditorUtility.ClearProgressBar();
                     EditorUtility.DisplayDialog("Create Branch Failed", result.ErrorMessage ?? "Unknown error", "OK");
                     Debug.LogError($"[FlexVault] Branch creation failed: {result.ErrorMessage}");
                     return;
                 }
 
                 string createdBranch = result.Data?.Branch ?? branchName;
+                bool switchedSuccessfully = result.Data != null && result.Data.Switched;
+
+                // Step 2: If branching from a historical revision and switch was requested, switch to it now
+                if (needTwoStepSwitch)
+                {
+                    EditorUtility.DisplayProgressBar("FlexVault", $"Switching workspace to '{createdBranch}'...", 0.8f);
+                    var switchResult = await FxvRunner.BranchSwitchAsync(createdBranch);
+                    if (!switchResult.Success)
+                    {
+                        EditorUtility.ClearProgressBar();
+                        EditorUtility.DisplayDialog(
+                            "Branch Created, Switch Failed",
+                            $"Branch '{createdBranch}' was created successfully, but switching workspace to it failed:\n\n{switchResult.ErrorMessage}",
+                            "OK");
+                        Debug.LogWarning($"[FlexVault] Branch switch failed: {switchResult.ErrorMessage}");
+                    }
+                    else
+                    {
+                        switchedSuccessfully = true;
+                    }
+                }
+
                 string rev = result.Data?.Revision ?? "";
                 string msg = $"Created branch '{createdBranch}'" + (!string.IsNullOrEmpty(rev) ? $" at {rev}." : ".");
-                if (result.Data != null && result.Data.Switched)
+                if (switchedSuccessfully)
                 {
                     msg += " Workspace switched to new branch.";
                 }
@@ -247,7 +384,7 @@ namespace FlexVault.VCS.Editor.UI
 
                 await FlexVaultStateCache.RefreshBranchesAsync();
 
-                if (result.Data != null && result.Data.Switched)
+                if (switchedSuccessfully)
                 {
                     AssetDatabase.Refresh();
                     FlexVaultStateCache.RefreshAsync();
@@ -255,20 +392,28 @@ namespace FlexVault.VCS.Editor.UI
 
                 Close();
             }
+            catch (OperationCanceledException)
+            {
+                // Assembly/domain reload in progress; exit cleanly
+            }
             catch (Exception ex)
             {
+                EditorUtility.ClearProgressBar();
                 EditorUtility.DisplayDialog("Create Branch Error", ex.Message, "OK");
                 Debug.LogError($"[FlexVault] Branch creation error: {ex.Message}");
             }
             finally
             {
                 EditorUtility.ClearProgressBar();
-                if (m_switchWorkspace)
+                if (lockedAssemblies)
                 {
                     EditorApplication.UnlockReloadAssemblies();
                 }
                 m_isOperating = false;
-                Repaint();
+                if (this != null)
+                {
+                    Repaint();
+                }
             }
         }
     }

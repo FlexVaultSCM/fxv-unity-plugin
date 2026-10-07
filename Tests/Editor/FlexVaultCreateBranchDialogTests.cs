@@ -22,6 +22,8 @@ namespace FlexVault.VCS.Editor.Tests
 
         [Test]
         [TestCase("")]
+        [TestCase("   ")]
+        [TestCase("\t")]
         [TestCase(null)]
         public void IsValidBranchName_EmptyOrNull_ReturnsFalse(string branchName)
         {

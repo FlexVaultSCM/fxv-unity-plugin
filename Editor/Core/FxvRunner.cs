@@ -529,6 +529,11 @@ namespace FlexVault.VCS.Editor.Core
             bool global = false,
             bool noSwitch = false)
         {
+            if (empty && !string.IsNullOrEmpty(fromRevision))
+            {
+                throw new ArgumentException("empty and fromRevision are mutually exclusive.");
+            }
+
             var args = new List<string> { "branch", "new", branchName };
             if (!string.IsNullOrEmpty(fromRevision))
             {
