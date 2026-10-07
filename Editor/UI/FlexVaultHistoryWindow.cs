@@ -24,6 +24,13 @@ namespace FlexVault.VCS.Editor.UI
         private string m_statusMessage = string.Empty;
         private HistoryFilter m_historyFilter = HistoryFilter.All;
 
+        private const float HistoryColToggleWidth = 24f;
+        private const float HistoryColTypeWidth = 85f;
+        private const float HistoryColRevisionWidth = 150f;
+        private const float HistoryColAuthorWidth = 110f;
+        private const float HistoryColDateWidth = 125f;
+        private const float HistoryColActionWidth = 65f;
+
         public static void ShowHistory(string targetPath = null)
         {
             var window = GetWindow<FlexVaultHistoryWindow>("FlexVault History");
@@ -205,25 +212,30 @@ namespace FlexVault.VCS.Editor.UI
 
             if (m_entries.Count > 0)
             {
+                float helpBoxLeft = EditorStyles.helpBox.margin.left + EditorStyles.helpBox.padding.left;
+                float helpBoxRight = EditorStyles.helpBox.margin.right + EditorStyles.helpBox.padding.right;
+
                 EditorGUILayout.BeginHorizontal();
                 {
-                    GUILayout.Space(18f + 2f);
-                    GUILayout.Label("Type", EditorStyles.miniBoldLabel, GUILayout.Width(75));
-                    GUILayout.Label("Revision", EditorStyles.miniBoldLabel, GUILayout.Width(115));
-                    GUILayout.Label("Author", EditorStyles.miniBoldLabel, GUILayout.Width(110));
-                    GUILayout.Label("Date", EditorStyles.miniBoldLabel, GUILayout.Width(110));
+                    GUILayout.Space(helpBoxLeft + HistoryColToggleWidth + 4f);
+                    GUILayout.Label("Type", EditorStyles.miniBoldLabel, GUILayout.Width(HistoryColTypeWidth));
+                    GUILayout.Label("Revision", EditorStyles.miniBoldLabel, GUILayout.Width(HistoryColRevisionWidth));
+                    GUILayout.Label("Author", EditorStyles.miniBoldLabel, GUILayout.Width(HistoryColAuthorWidth));
+                    GUILayout.Label("Date", EditorStyles.miniBoldLabel, GUILayout.Width(HistoryColDateWidth));
                     GUILayout.FlexibleSpace();
+                    GUILayout.Space(HistoryColActionWidth + helpBoxRight + 4f);
                 }
                 EditorGUILayout.EndHorizontal();
             }
 
             m_scrollPos = EditorGUILayout.BeginScrollView(m_scrollPos, GUILayout.ExpandHeight(true));
             {
+                int visibleIndex = 0;
                 for (int i = 0; i < m_entries.Count; i++)
                 {
                     var entry = m_entries[i];
                     if (!MatchesHistoryFilter(entry)) continue;
-                    DrawHistoryEntry(entry, i);
+                    DrawHistoryEntry(entry, i, visibleIndex++);
                 }
             }
             EditorGUILayout.EndScrollView();
@@ -241,7 +253,7 @@ namespace FlexVault.VCS.Editor.UI
         private readonly Dictionary<string, ChangeInfoPayload> m_changeInfoCache = new Dictionary<string, ChangeInfoPayload>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> m_loadingChangeInfo = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        private void DrawHistoryEntry(CommitRefJson entry, int index)
+        private void DrawHistoryEntry(CommitRefJson entry, int index, int visibleIndex)
         {
             bool isCurrent = FlexVaultStateCache.IsCurrentWorkspaceRevision(entry, m_entries);
             var prevBg = GUI.backgroundColor;
@@ -251,7 +263,7 @@ namespace FlexVault.VCS.Editor.UI
                     ? new Color(0.20f, 0.45f, 0.28f, 1f)
                     : new Color(0.72f, 0.92f, 0.78f, 1f);
             }
-            else if (index % 2 != 0)
+            else if (visibleIndex % 2 != 0)
             {
                 // Zebra-stripe via a background tint rather than swapping GUIStyles: helpBox and
                 // textArea have different internal padding, which was shifting every column's
@@ -267,8 +279,8 @@ namespace FlexVault.VCS.Editor.UI
                 {
                     string rev = entry.RevisionDisplay;
                     bool isExpanded = m_expandedRevisions.Contains(rev);
-                    string toggleSymbol = isExpanded ? "▼" : "▶";
-                    if (GUILayout.Button(toggleSymbol, EditorStyles.label, GUILayout.Width(18)))
+                    string toggleSymbol = isExpanded ? "\u25BC" : "\u25B6";
+                    if (GUILayout.Button(toggleSymbol, EditorStyles.miniButton, GUILayout.Width(HistoryColToggleWidth)))
                     {
                         if (isExpanded)
                         {
@@ -287,20 +299,20 @@ namespace FlexVault.VCS.Editor.UI
 
                     Color prevCol = GUI.contentColor;
                     GUI.contentColor = badgeColor;
-                    GUILayout.Label(typeLabel, EditorStyles.miniBoldLabel, GUILayout.Width(75));
+                    GUILayout.Label(typeLabel, EditorStyles.miniBoldLabel, GUILayout.Width(HistoryColTypeWidth));
                     GUI.contentColor = prevCol;
 
-                    GUILayout.Label(rev, EditorStyles.boldLabel, GUILayout.Width(115));
+                    GUILayout.Label(rev, EditorStyles.boldLabel, GUILayout.Width(HistoryColRevisionWidth));
 
                     string author = !string.IsNullOrEmpty(entry.AuthorDisplayName)
                         ? entry.AuthorDisplayName
                         : (!string.IsNullOrEmpty(entry.AuthorId) ? entry.AuthorId : "Unknown");
-                    GUILayout.Label(author, EditorStyles.miniLabel, GUILayout.Width(110));
+                    GUILayout.Label(author, EditorStyles.miniLabel, GUILayout.Width(HistoryColAuthorWidth));
 
                     string timeStr = entry.TimestampMillisSinceEpochUtc > 0
                         ? entry.TimestampUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
                         : string.Empty;
-                    GUILayout.Label(timeStr, EditorStyles.miniLabel, GUILayout.Width(110));
+                    GUILayout.Label(timeStr, EditorStyles.miniLabel, GUILayout.Width(HistoryColDateWidth));
 
                     GUILayout.FlexibleSpace();
 
@@ -325,7 +337,7 @@ namespace FlexVault.VCS.Editor.UI
                     else
                     {
                         GUI.enabled = !isCurrent;
-                        if (GUILayout.Button(isCurrent ? "Current" : "Go To", EditorStyles.miniButton, GUILayout.Width(65)))
+                        if (GUILayout.Button(isCurrent ? "Current" : "Go To", EditorStyles.miniButton, GUILayout.Width(HistoryColActionWidth)))
                         {
                             FlexVaultWindow.ExecuteGotoRevision(entry.RevisionDisplay, Repaint);
                         }
