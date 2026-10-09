@@ -185,6 +185,11 @@ namespace FlexVault.VCS.Editor.UI
                 string[] filterLabels = { "All", "Drafts", "Published" };
                 m_historyFilter = (HistoryFilter)GUILayout.Toolbar((int)m_historyFilter, filterLabels, EditorStyles.toolbarButton, GUILayout.Width(180));
 
+                if (GUILayout.Button("New Branch...", EditorStyles.toolbarButton, GUILayout.Width(85)))
+                {
+                    FlexVaultCreateBranchDialog.ShowWindow();
+                }
+
                 GUI.enabled = !m_isLoading;
                 if (GUILayout.Button("Refresh", EditorStyles.toolbarButton, GUILayout.Width(65)))
                 {
@@ -355,6 +360,23 @@ namespace FlexVault.VCS.Editor.UI
                 }
             }
             EditorGUILayout.EndVertical();
+
+            Rect rowRect = GUILayoutUtility.GetLastRect();
+            Event evt = Event.current;
+            if (evt != null && evt.type == EventType.ContextClick && rowRect.Contains(evt.mousePosition))
+            {
+                var contextMenu = new GenericMenu();
+                string targetRev = entry.RevisionDisplay;
+                contextMenu.AddItem(new GUIContent($"Create Branch From {targetRev}..."), false, () => FlexVaultCreateBranchDialog.ShowWindow(targetRev));
+                if (!isCurrent)
+                {
+                    contextMenu.AddItem(new GUIContent($"Go To Revision {targetRev}"), false, () => FlexVaultWindow.ExecuteGotoRevision(targetRev, Repaint));
+                }
+                contextMenu.AddItem(new GUIContent("Copy Revision Spec"), false, () => EditorGUIUtility.systemCopyBuffer = targetRev);
+                contextMenu.ShowAsContext();
+                evt.Use();
+            }
+
             GUI.backgroundColor = prevBg;
             GUILayout.Space(2f);
         }

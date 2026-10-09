@@ -522,6 +522,54 @@ namespace FlexVault.VCS.Editor.Core
             return await RunCommandAsync<WorkspaceSyncPayload>(args, ct);
         }
 
+        internal static List<string> BuildBranchNewArgs(
+            string branchName,
+            string fromRevision = null,
+            bool empty = false,
+            bool global = false,
+            bool noSwitch = false)
+        {
+            if (empty && !string.IsNullOrEmpty(fromRevision))
+            {
+                throw new ArgumentException("empty and fromRevision are mutually exclusive.");
+            }
+
+            var args = new List<string> { "branch", "new", branchName };
+            if (!string.IsNullOrEmpty(fromRevision))
+            {
+                args.Add("--from");
+                args.Add(fromRevision);
+            }
+            else if (empty)
+            {
+                args.Add("--empty");
+            }
+
+            if (global)
+            {
+                args.Add("--global");
+            }
+
+            if (noSwitch)
+            {
+                args.Add("--no-switch");
+            }
+
+            return args;
+        }
+
+        public static async Task<FxvResult<BranchNewPayload>> BranchNewAsync(
+            string branchName,
+            string fromRevision = null,
+            bool empty = false,
+            bool global = false,
+            bool noSwitch = false,
+            CancellationToken ct = default)
+        {
+            var args = BuildBranchNewArgs(branchName, fromRevision, empty, global, noSwitch);
+            return await RunCommandAsync<BranchNewPayload>(args, ct);
+        }
+
         public static async Task<bool> CatToFileAsync(
             string repoRelativePath,
             string revision,
