@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.7.2...v0.8.0) (2026-10-09)
+
+
+### Features
+
+* add branch creation dialog and runner support ([#38](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/38)) ([28f2531](https://github.com/FlexVaultSCM/fxv-unity-plugin/commit/28f2531befb5321d2970b09f87f6f96bb13c2dde))
+
 ## [0.7.2](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.7.1...v0.7.2) (2026-10-07)
 
 
