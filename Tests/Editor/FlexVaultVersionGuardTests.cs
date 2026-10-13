@@ -73,6 +73,9 @@ namespace FlexVault.VCS.Editor.Tests
 
             Assert.IsTrue(FlexVaultVersionGuard.CheckVersion("0.11.9", out string error4));
             Assert.IsNull(error4);
+
+            Assert.IsTrue(FlexVaultVersionGuard.CheckVersion("0.12.0", out string error5));
+            Assert.IsNull(error5);
         }
 
         [Test]
