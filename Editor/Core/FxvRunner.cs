@@ -578,7 +578,7 @@ namespace FlexVault.VCS.Editor.Core
             return await RunCommandAsync<BranchNewPayload>(args, ct);
         }
 
-        internal static List<string> BuildFetchArgs(bool repair = false)
+        public static List<string> BuildFetchArgs(bool repair = false)
         {
             var args = new List<string> { "fetch" };
             if (repair)
