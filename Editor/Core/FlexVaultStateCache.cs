@@ -370,7 +370,7 @@ namespace FlexVault.VCS.Editor.Core
         private const double RefreshCooldownSeconds = 2.0;
         private static bool s_refreshPending;
 
-        public static async void RefreshAsync(bool skipScan = false, bool force = false)
+        public static async void RefreshAsync(bool skipScan = false, bool force = false, bool skipRemoteUpdate = false)
         {
             lock (s_lock)
             {
@@ -390,7 +390,7 @@ namespace FlexVault.VCS.Editor.Core
                         EditorApplication.delayCall += async () =>
                         {
                             await Task.Delay(delayMs);
-                            RefreshAsync(skipScan, force: false);
+                            RefreshAsync(skipScan, force: false, skipRemoteUpdate: skipRemoteUpdate);
                         };
                     }
                     return;
@@ -401,7 +401,7 @@ namespace FlexVault.VCS.Editor.Core
 
             try
             {
-                var result = await FxvRunner.GetStatusAsync(skipScan);
+                var result = await FxvRunner.GetStatusAsync(skipScan, skipRemoteUpdate);
                 if (result.Success && result.Data != null)
                 {
                     EditorApplication.delayCall += () =>
@@ -412,7 +412,7 @@ namespace FlexVault.VCS.Editor.Core
                         }
                         finally
                         {
-                            FinishRefresh(skipScan, force);
+                            FinishRefresh(skipScan, force, skipRemoteUpdate);
                         }
                     };
                     return;
@@ -431,10 +431,10 @@ namespace FlexVault.VCS.Editor.Core
                 UnityEngine.Debug.LogError($"[FlexVault] Error updating state cache: {ex.Message}");
             }
 
-            FinishRefresh(skipScan, force);
+            FinishRefresh(skipScan, force, skipRemoteUpdate);
         }
 
-        private static void FinishRefresh(bool skipScan, bool force = false)
+        private static void FinishRefresh(bool skipScan, bool force = false, bool skipRemoteUpdate = false)
         {
             bool triggerPending = false;
             bool shouldFetchBranches = false;
@@ -455,7 +455,7 @@ namespace FlexVault.VCS.Editor.Core
 
             if (triggerPending)
             {
-                EditorApplication.delayCall += () => RefreshAsync(skipScan);
+                EditorApplication.delayCall += () => RefreshAsync(skipScan, force: false, skipRemoteUpdate: skipRemoteUpdate);
             }
             else if (shouldFetchBranches)
             {

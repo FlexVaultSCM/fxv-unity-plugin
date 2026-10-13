@@ -86,6 +86,11 @@ namespace FlexVault.VCS.Editor.Hooks
                 return;
             }
 
+            if (FlexVaultPeriodicFetch.IsFetchInFlight)
+            {
+                return;
+            }
+
             var pendingChanges = FlexVaultStateCache.GetWorkspaceChanges();
             if (pendingChanges.Count == 0)
             {

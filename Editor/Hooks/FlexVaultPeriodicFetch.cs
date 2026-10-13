@@ -12,6 +12,8 @@ namespace FlexVault.VCS.Editor.Hooks
         private static double s_lastFetchTime = -1;
         private static bool s_fetchInFlight;
 
+        public static bool IsFetchInFlight => s_fetchInFlight;
+
         static FlexVaultPeriodicFetch()
         {
             s_lastFetchTime = EditorApplication.timeSinceStartup;
@@ -43,7 +45,7 @@ namespace FlexVault.VCS.Editor.Hooks
                 return;
             }
 
-            if (s_fetchInFlight)
+            if (s_fetchInFlight || FlexVaultStateCache.IsRefreshing)
             {
                 return;
             }
@@ -63,7 +65,7 @@ namespace FlexVault.VCS.Editor.Hooks
                 {
                     if (result.Data != null && result.Data.BytesDownloaded > 0)
                     {
-                        FlexVaultStateCache.RefreshAsync();
+                        FlexVaultStateCache.RefreshAsync(skipScan: false, force: false, skipRemoteUpdate: true);
                     }
                 }
                 else

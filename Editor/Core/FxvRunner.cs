@@ -295,15 +295,23 @@ namespace FlexVault.VCS.Editor.Core
             }
         }
 
-        public static async Task<FxvResult<StatusPayload>> GetStatusAsync(bool skipScan = false, CancellationToken ct = default)
+        public static List<string> BuildStatusArgs(bool skipScan = false, bool skipRemoteUpdate = false)
         {
             var args = new List<string> { "status" };
             if (skipScan)
             {
                 args.Add("--skip-scan");
+            }
+            if (skipRemoteUpdate || skipScan)
+            {
                 args.Add("--skip-remote-update");
             }
+            return args;
+        }
 
+        public static async Task<FxvResult<StatusPayload>> GetStatusAsync(bool skipScan = false, bool skipRemoteUpdate = false, CancellationToken ct = default)
+        {
+            var args = BuildStatusArgs(skipScan, skipRemoteUpdate);
             return await RunCommandAsync<StatusPayload>(args, ct);
         }
 
