@@ -152,6 +152,20 @@ namespace FlexVault.VCS.Editor.Tests
         }
 
         [Test]
+        public void BuildFetchArgs_Default_ReturnsFetch()
+        {
+            var args = FxvRunner.BuildFetchArgs();
+            CollectionAssert.AreEqual(new[] { "fetch" }, args);
+        }
+
+        [Test]
+        public void BuildFetchArgs_WithRepair_IncludesRepairFlag()
+        {
+            var args = FxvRunner.BuildFetchArgs(repair: true);
+            CollectionAssert.AreEqual(new[] { "fetch", "--repair" }, args);
+        }
+
+        [Test]
         public async Task RunCommandAsync_NonExistentBinary_FailsGracefully()
         {
             string invalidBinary = Path.Combine(Path.GetTempPath(), "nonexistent_fxv_dir", "definitely_not_a_binary");

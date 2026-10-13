@@ -570,6 +570,22 @@ namespace FlexVault.VCS.Editor.Core
             return await RunCommandAsync<BranchNewPayload>(args, ct);
         }
 
+        internal static List<string> BuildFetchArgs(bool repair = false)
+        {
+            var args = new List<string> { "fetch" };
+            if (repair)
+            {
+                args.Add("--repair");
+            }
+            return args;
+        }
+
+        public static async Task<FxvResult<FxvFetchPayload>> FetchAsync(bool repair = false, CancellationToken ct = default)
+        {
+            var args = BuildFetchArgs(repair);
+            return await RunCommandAsync<FxvFetchPayload>(args, ct);
+        }
+
         public static async Task<bool> CatToFileAsync(
             string repoRelativePath,
             string revision,

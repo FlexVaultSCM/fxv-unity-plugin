@@ -159,6 +159,19 @@ namespace FlexVault.VCS.Editor.Core
             set => EditorPrefs.SetInt(PeriodicSnapshotIntervalPrefKey, value);
         }
 
+        private const string FetchPeriodPrefKey = "FlexVault_FetchPeriodSeconds";
+        public const int DefaultFetchPeriodSeconds = 120;
+
+        /// <summary>
+        /// Seconds between periodic fxv fetch attempts to pull remote metadata.
+        /// Zero or negative disables periodic fetch.
+        /// </summary>
+        public static int FetchPeriodSeconds
+        {
+            get => EditorPrefs.GetInt(FetchPeriodPrefKey, DefaultFetchPeriodSeconds);
+            set => EditorPrefs.SetInt(FetchPeriodPrefKey, value);
+        }
+
         public static bool IsInFlexVaultRepository()
         {
             string root = GetRepositoryRoot();
@@ -246,6 +259,22 @@ namespace FlexVault.VCS.Editor.Core
                 FlexVaultSettings.PeriodicSnapshotIntervalSeconds > 0
                     ? "A snapshot is taken automatically if pending changes have gone this long without one. Set to 0 to disable."
                     : "Periodic snapshots are disabled.",
+                EditorStyles.wordWrappedMiniLabel);
+
+            GUILayout.Space(15f);
+            EditorGUILayout.LabelField("Remote Synchronization", EditorStyles.boldLabel);
+            GUILayout.Space(5f);
+
+            EditorGUI.BeginChangeCheck();
+            int newFetchPeriod = EditorGUILayout.IntField("Fetch Period (seconds)", FlexVaultSettings.FetchPeriodSeconds);
+            if (EditorGUI.EndChangeCheck())
+            {
+                FlexVaultSettings.FetchPeriodSeconds = newFetchPeriod;
+            }
+            EditorGUILayout.LabelField(
+                FlexVaultSettings.FetchPeriodSeconds > 0
+                    ? "Remote metadata is polled periodically via fxv fetch. Set to 0 to disable."
+                    : "Periodic fetch is disabled.",
                 EditorStyles.wordWrappedMiniLabel);
 
             GUILayout.Space(10f);

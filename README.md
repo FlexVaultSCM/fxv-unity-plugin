@@ -41,6 +41,7 @@ Unity Editor Version Control plugin for [FlexVault](https://fxv.dev). Integrates
 
 Navigate to **Edit > Project Settings > Version Control > FlexVault**:
 * **CLI Executable Path**: Set a custom path to `fxv.exe` (Windows) or `fxv` (macOS/Linux), or rely on auto-discovery from standard locations and `PATH`.
+* **Fetch Period**: Interval in seconds between periodic background `fxv fetch` attempts to pull remote metadata (defaults to 120 seconds; set to 0 to disable).
 * **Test Connection**: Validates that Unity can execute `fxv status` and communicate with the local repository.
 
 ---
