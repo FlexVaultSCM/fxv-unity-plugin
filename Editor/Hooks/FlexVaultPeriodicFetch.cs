@@ -10,7 +10,7 @@ namespace FlexVault.VCS.Editor.Hooks
         private const double PeriodicCheckIntervalSeconds = 5.0;
         private static double s_lastCheckTime = -1;
         private static double s_lastFetchTime = -1;
-        private static bool s_fetchInFlight;
+        private static volatile bool s_fetchInFlight;
 
         public static bool IsFetchInFlight => s_fetchInFlight;
 
@@ -22,6 +22,16 @@ namespace FlexVault.VCS.Editor.Hooks
 
         private static void CheckPeriodicFetch()
         {
+            if (EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isPlaying || EditorApplication.isPaused)
+            {
+                return;
+            }
+
+            if (EditorApplication.isCompiling || EditorApplication.isUpdating)
+            {
+                return;
+            }
+
             double now = EditorApplication.timeSinceStartup;
             if (s_lastCheckTime >= 0 && now - s_lastCheckTime < PeriodicCheckIntervalSeconds)
             {
@@ -30,6 +40,12 @@ namespace FlexVault.VCS.Editor.Hooks
             s_lastCheckTime = now;
 
             if (!FlexVaultSettings.IsFlexVaultActive())
+            {
+                return;
+            }
+
+            // Periodic fetch is supported only on fxv >= 0.12.0
+            if (FlexVaultVersionGuard.IsVersionCompatible != true || !FlexVaultVersionGuard.SupportsFetch)
             {
                 return;
             }
@@ -65,17 +81,28 @@ namespace FlexVault.VCS.Editor.Hooks
                 {
                     if (result.Data != null && result.Data.BytesDownloaded > 0)
                     {
-                        FlexVaultStateCache.RefreshAsync(skipScan: false, force: false, skipRemoteUpdate: true);
+                        // Skip local disk scan (working tree is untouched by fetch), force branch cache refresh, and skip remote update
+                        FlexVaultStateCache.RefreshAsync(skipScan: true, force: true, skipRemoteUpdate: true);
                     }
                 }
                 else
                 {
-                    Debug.LogWarning($"[FlexVault] Periodic fetch failed: {result.ErrorMessage}");
+                    // Ignore normal cancellation during domain reload, script recompilation, or play mode transitions
+                    if (result.ErrorMessage != null
+                        && !result.ErrorMessage.Contains("canceled")
+                        && !result.ErrorMessage.Contains("cancelled"))
+                    {
+                        Debug.Log($"[FlexVault] Periodic fetch completed with notice: {result.ErrorMessage}");
+                    }
                 }
+            }
+            catch (System.OperationCanceledException)
+            {
+                // Silently swallow cancellation from domain reloads or editor assembly transitions
             }
             catch (System.Exception ex)
             {
-                Debug.LogWarning($"[FlexVault] Periodic fetch exception: {ex.Message}");
+                Debug.Log($"[FlexVault] Periodic fetch notice: {ex.Message}");
             }
             finally
             {

@@ -187,6 +187,13 @@ namespace FlexVault.VCS.Editor.Tests
         }
 
         [Test]
+        public void BuildStatusArgs_SkipScanWithExplicitRemoteUpdate_OmitsSkipRemoteUpdate()
+        {
+            var args = FxvRunner.BuildStatusArgs(skipScan: true, skipRemoteUpdate: false);
+            CollectionAssert.AreEqual(new[] { "status", "--skip-scan" }, args);
+        }
+
+        [Test]
         public async Task RunCommandAsync_NonExistentBinary_FailsGracefully()
         {
             string invalidBinary = Path.Combine(Path.GetTempPath(), "nonexistent_fxv_dir", "definitely_not_a_binary");

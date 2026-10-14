@@ -137,16 +137,29 @@ namespace FlexVault.VCS.Editor.Tests
         {
             FlexVaultVersionGuard.ResetCachedVersion();
             Assert.IsNull(FlexVaultVersionGuard.IsVersionCompatible);
+            Assert.IsNull(FlexVaultVersionGuard.CachedVersion);
+            Assert.IsFalse(FlexVaultVersionGuard.SupportsFetch);
 
             bool ok = FlexVaultVersionGuard.CheckAndCacheVersion("0.11.0", out string err);
             Assert.IsTrue(ok);
             Assert.IsTrue(FlexVaultVersionGuard.IsVersionCompatible);
             Assert.AreEqual("0.11.0", FlexVaultVersionGuard.LastVersionString);
+            Assert.AreEqual(new FxvCliVersion(0, 11, 0), FlexVaultVersionGuard.CachedVersion);
+            Assert.IsFalse(FlexVaultVersionGuard.SupportsFetch);
             Assert.IsNull(err);
+
+            bool ok12 = FlexVaultVersionGuard.CheckAndCacheVersion("0.12.0", out string err12);
+            Assert.IsTrue(ok12);
+            Assert.IsTrue(FlexVaultVersionGuard.IsVersionCompatible);
+            Assert.AreEqual(new FxvCliVersion(0, 12, 0), FlexVaultVersionGuard.CachedVersion);
+            Assert.IsTrue(FlexVaultVersionGuard.SupportsFetch);
+            Assert.IsNull(err12);
 
             FlexVaultVersionGuard.ResetCachedVersion();
             Assert.IsNull(FlexVaultVersionGuard.IsVersionCompatible);
             Assert.IsNull(FlexVaultVersionGuard.LastVersionString);
+            Assert.IsNull(FlexVaultVersionGuard.CachedVersion);
+            Assert.IsFalse(FlexVaultVersionGuard.SupportsFetch);
         }
     }
 }
