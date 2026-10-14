@@ -462,5 +462,42 @@ namespace FlexVault.VCS.Editor.Tests
 
             Assert.AreEqual(1, FlexVaultStateCache.CachedBranches.Count);
         }
+
+        private static void InvokeEnqueuePendingRefresh(bool skipScan, bool force, bool skipRemoteUpdate)
+        {
+            var method = typeof(FlexVaultStateCache).GetMethod("EnqueuePendingRefresh", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.IsNotNull(method, "EnqueuePendingRefresh method should exist on FlexVaultStateCache");
+            method.Invoke(null, new object[] { skipScan, force, skipRemoteUpdate });
+        }
+
+        [Test]
+        public void StateCache_EnqueuePendingRefresh_MergesFlagsCorrectly()
+        {
+            var pendingField = typeof(FlexVaultStateCache).GetField("s_refreshPending", BindingFlags.NonPublic | BindingFlags.Static);
+            var skipScanField = typeof(FlexVaultStateCache).GetField("s_pendingSkipScan", BindingFlags.NonPublic | BindingFlags.Static);
+            var forceField = typeof(FlexVaultStateCache).GetField("s_pendingForce", BindingFlags.NonPublic | BindingFlags.Static);
+            var skipRemoteField = typeof(FlexVaultStateCache).GetField("s_pendingSkipRemoteUpdate", BindingFlags.NonPublic | BindingFlags.Static);
+
+            // Reset state
+            pendingField.SetValue(null, false);
+
+            // Enqueue first request: skipScan = true, force = false, skipRemoteUpdate = true
+            InvokeEnqueuePendingRefresh(skipScan: true, force: false, skipRemoteUpdate: true);
+            Assert.IsTrue((bool)pendingField.GetValue(null));
+            Assert.IsTrue((bool)skipScanField.GetValue(null));
+            Assert.IsFalse((bool)forceField.GetValue(null));
+            Assert.IsTrue((bool)skipRemoteField.GetValue(null));
+
+            // Enqueue second request needing full scan: skipScan = false, force = true, skipRemoteUpdate = false
+            InvokeEnqueuePendingRefresh(skipScan: false, force: true, skipRemoteUpdate: false);
+            // Merged result: skipScan should be false (someone needs a scan), force should be true, skipRemote should be false
+            Assert.IsTrue((bool)pendingField.GetValue(null));
+            Assert.IsFalse((bool)skipScanField.GetValue(null));
+            Assert.IsTrue((bool)forceField.GetValue(null));
+            Assert.IsFalse((bool)skipRemoteField.GetValue(null));
+
+            // Reset state
+            pendingField.SetValue(null, false);
+        }
     }
 }

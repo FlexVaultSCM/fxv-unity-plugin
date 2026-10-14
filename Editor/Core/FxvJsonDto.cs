@@ -427,4 +427,14 @@ namespace FlexVault.VCS.Editor.Core
         [JsonProperty("switched")]
         public bool Switched { get; set; }
     }
+
+    [Serializable]
+    public class FxvFetchPayload
+    {
+        [JsonProperty("bytes_downloaded")]
+        public long BytesDownloaded { get; set; }
+
+        [JsonProperty("repaired_files")]
+        public List<string> RepairedFiles { get; set; } = new List<string>();
+    }
 }

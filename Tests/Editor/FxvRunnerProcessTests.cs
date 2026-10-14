@@ -80,23 +80,23 @@ namespace FlexVault.VCS.Editor.Tests
         [Test]
         public void BuildIntegrationRegisterArgs_FullySpecified_IncludesAllFlags()
         {
-            var args = InvokeBuildIntegrationRegisterArgs("/tmp/ws", "0.6.0", "0.11.0", "0.12.0");
+            var args = InvokeBuildIntegrationRegisterArgs("/tmp/ws", "0.6.0", "0.11.0", "0.13.0");
             CollectionAssert.AreEqual(
-                new[] { "integration", "register", "--name", "unity", "--plugin-version", "0.6.0", "--min", "0.11.0", "--max-version", "0.12.0", "--workspace", "/tmp/ws" },
+                new[] { "integration", "register", "--name", "unity", "--plugin-version", "0.6.0", "--min", "0.11.0", "--max-version", "0.13.0", "--workspace", "/tmp/ws" },
                 args);
         }
 
         [Test]
         public void BuildIntegrationRegisterArgs_UnknownPluginVersion_OmitsPluginVersionFlag()
         {
-            var args = InvokeBuildIntegrationRegisterArgs("/tmp/ws", "unknown", "0.11.0", "0.12.0");
+            var args = InvokeBuildIntegrationRegisterArgs("/tmp/ws", "unknown", "0.11.0", "0.13.0");
             CollectionAssert.DoesNotContain(args, "--plugin-version");
         }
 
         [Test]
         public void BuildIntegrationRegisterArgs_EmptyPluginVersion_OmitsPluginVersionFlag()
         {
-            var args = InvokeBuildIntegrationRegisterArgs("/tmp/ws", "", "0.11.0", "0.12.0");
+            var args = InvokeBuildIntegrationRegisterArgs("/tmp/ws", "", "0.11.0", "0.13.0");
             CollectionAssert.DoesNotContain(args, "--plugin-version");
         }
 
@@ -149,6 +149,48 @@ namespace FlexVault.VCS.Editor.Tests
             });
             Assert.IsInstanceOf<ArgumentException>(ex.InnerException);
             StringAssert.Contains("mutually exclusive", ex.InnerException.Message.ToLowerInvariant());
+        }
+
+        [Test]
+        public void BuildFetchArgs_Default_ReturnsFetch()
+        {
+            var args = FxvRunner.BuildFetchArgs();
+            CollectionAssert.AreEqual(new[] { "fetch" }, args);
+        }
+
+        [Test]
+        public void BuildFetchArgs_WithRepair_IncludesRepairFlag()
+        {
+            var args = FxvRunner.BuildFetchArgs(repair: true);
+            CollectionAssert.AreEqual(new[] { "fetch", "--repair" }, args);
+        }
+
+        [Test]
+        public void BuildStatusArgs_Default_ReturnsStatus()
+        {
+            var args = FxvRunner.BuildStatusArgs();
+            CollectionAssert.AreEqual(new[] { "status" }, args);
+        }
+
+        [Test]
+        public void BuildStatusArgs_SkipRemoteUpdate_IncludesSkipRemoteUpdateFlag()
+        {
+            var args = FxvRunner.BuildStatusArgs(skipRemoteUpdate: true);
+            CollectionAssert.AreEqual(new[] { "status", "--skip-remote-update" }, args);
+        }
+
+        [Test]
+        public void BuildStatusArgs_SkipScan_IncludesSkipScanAndSkipRemoteUpdate()
+        {
+            var args = FxvRunner.BuildStatusArgs(skipScan: true);
+            CollectionAssert.AreEqual(new[] { "status", "--skip-scan", "--skip-remote-update" }, args);
+        }
+
+        [Test]
+        public void BuildStatusArgs_SkipScanWithExplicitRemoteUpdate_OmitsSkipRemoteUpdate()
+        {
+            var args = FxvRunner.BuildStatusArgs(skipScan: true, skipRemoteUpdate: false);
+            CollectionAssert.AreEqual(new[] { "status", "--skip-scan" }, args);
         }
 
         [Test]

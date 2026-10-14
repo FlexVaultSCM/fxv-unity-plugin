@@ -7,7 +7,7 @@ Unity Editor Version Control plugin for [FlexVault](https://fxv.dev). Integrates
 ## Requirements
 
 * **Unity**: Unity 2021.3 LTS, 2022.3 LTS, or Unity 6+.
-* **FlexVault CLI**: `fxv` binary version `0.11.0` to `< 0.12.0` installed and accessible (or configured via Project Settings).
+* **FlexVault CLI**: `fxv` binary version `0.11.0` to `< 0.13.0` installed and accessible (or configured via Project Settings).
 * **Newtonsoft JSON**: Automatically resolved via Package Manager (`com.unity.nuget.newtonsoft-json`).
 
 ---
@@ -41,6 +41,7 @@ Unity Editor Version Control plugin for [FlexVault](https://fxv.dev). Integrates
 
 Navigate to **Edit > Project Settings > Version Control > FlexVault**:
 * **CLI Executable Path**: Set a custom path to `fxv.exe` (Windows) or `fxv` (macOS/Linux), or rely on auto-discovery from standard locations and `PATH`.
+* **Fetch Period**: Interval in seconds between periodic background `fxv fetch` attempts to pull remote metadata (defaults to 120 seconds; set to 0 to disable).
 * **Test Connection**: Validates that Unity can execute `fxv status` and communicate with the local repository.
 
 ---

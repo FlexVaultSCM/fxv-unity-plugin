@@ -439,5 +439,37 @@ namespace FlexVault.VCS.Editor.Tests
             Assert.IsNull(payload.SourceRevision);
             Assert.IsFalse(payload.Switched);
         }
+
+        [Test]
+        public void FxvFetchPayload_Deserialization_ParsesCorrectly()
+        {
+            string json = @"{
+                ""program"": {
+                    ""name"": ""fxv"",
+                    ""version"": ""0.12.0"",
+                    ""executable"": ""fxv.exe"",
+                    ""arguments"": [""fetch"", ""--format"", ""json""],
+                    ""invoked_at"": ""2026-10-13T12:00:00Z""
+                },
+                ""message"": {
+                    ""kind"": ""fetch"",
+                    ""version"": ""1.0"",
+                    ""payload"": {
+                        ""bytes_downloaded"": 5242880,
+                        ""repaired_files"": [""corrupt_asset.mat"", ""broken.prefab""]
+                    }
+                }
+            }";
+
+            var envelope = JsonConvert.DeserializeObject<OutputEnvelope<FxvFetchPayload>>(json);
+            Assert.IsNotNull(envelope);
+            Assert.AreEqual("fetch", envelope.Message.Kind);
+            var payload = envelope.Message.Payload;
+            Assert.IsNotNull(payload);
+            Assert.AreEqual(5242880L, payload.BytesDownloaded);
+            Assert.AreEqual(2, payload.RepairedFiles.Count);
+            Assert.AreEqual("corrupt_asset.mat", payload.RepairedFiles[0]);
+            Assert.AreEqual("broken.prefab", payload.RepairedFiles[1]);
+        }
     }
 }

@@ -103,21 +103,26 @@ namespace FlexVault.VCS.Editor.Core
         // MinVersion tracks the `status` command's payload schema; versions below it emit a shape
         // this plugin no longer parses.
         public static readonly FxvCliVersion MinVersion = new FxvCliVersion(0, 11, 0);
-        public static readonly FxvCliVersion MaxVersion = new FxvCliVersion(0, 12, 0);
+        public static readonly FxvCliVersion MaxVersion = new FxvCliVersion(0, 13, 0);
+        public static readonly FxvCliVersion FetchSupportedVersion = new FxvCliVersion(0, 12, 0);
 
         public static bool? IsVersionCompatible => s_isVersionCompatible;
         public static string LastVersionString => s_lastVersionString;
         public static string LastErrorMessage => s_lastErrorMessage;
+        public static FxvCliVersion? CachedVersion => s_cachedVersion;
+        public static bool SupportsFetch => s_isVersionCompatible == true && s_cachedVersion.HasValue && s_cachedVersion.Value >= FetchSupportedVersion;
 
         private static bool? s_isVersionCompatible;
         private static string s_lastVersionString;
         private static string s_lastErrorMessage;
+        private static FxvCliVersion? s_cachedVersion;
 
         public static void ResetCachedVersion()
         {
             s_isVersionCompatible = null;
             s_lastVersionString = null;
             s_lastErrorMessage = null;
+            s_cachedVersion = null;
         }
 
         public static bool CheckAndCacheVersion(string versionStr, out string errorMessage)
@@ -126,6 +131,14 @@ namespace FlexVault.VCS.Editor.Core
             s_isVersionCompatible = ok;
             s_lastVersionString = versionStr;
             s_lastErrorMessage = errorMessage;
+            if (ok && FxvCliVersion.TryParse(versionStr, out var parsed))
+            {
+                s_cachedVersion = parsed;
+            }
+            else
+            {
+                s_cachedVersion = null;
+            }
             return ok;
         }
 

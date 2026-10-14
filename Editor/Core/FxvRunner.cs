@@ -295,15 +295,24 @@ namespace FlexVault.VCS.Editor.Core
             }
         }
 
-        public static async Task<FxvResult<StatusPayload>> GetStatusAsync(bool skipScan = false, CancellationToken ct = default)
+        public static List<string> BuildStatusArgs(bool skipScan = false, bool? skipRemoteUpdate = null)
         {
             var args = new List<string> { "status" };
             if (skipScan)
             {
                 args.Add("--skip-scan");
+            }
+            bool effectiveSkipRemote = skipRemoteUpdate ?? skipScan;
+            if (effectiveSkipRemote)
+            {
                 args.Add("--skip-remote-update");
             }
+            return args;
+        }
 
+        public static async Task<FxvResult<StatusPayload>> GetStatusAsync(bool skipScan = false, bool? skipRemoteUpdate = null, CancellationToken ct = default)
+        {
+            var args = BuildStatusArgs(skipScan, skipRemoteUpdate);
             return await RunCommandAsync<StatusPayload>(args, ct);
         }
 
@@ -568,6 +577,22 @@ namespace FlexVault.VCS.Editor.Core
         {
             var args = BuildBranchNewArgs(branchName, fromRevision, empty, global, noSwitch);
             return await RunCommandAsync<BranchNewPayload>(args, ct);
+        }
+
+        public static List<string> BuildFetchArgs(bool repair = false)
+        {
+            var args = new List<string> { "fetch" };
+            if (repair)
+            {
+                args.Add("--repair");
+            }
+            return args;
+        }
+
+        public static async Task<FxvResult<FxvFetchPayload>> FetchAsync(bool repair = false, CancellationToken ct = default)
+        {
+            var args = BuildFetchArgs(repair);
+            return await RunCommandAsync<FxvFetchPayload>(args, ct);
         }
 
         public static async Task<bool> CatToFileAsync(

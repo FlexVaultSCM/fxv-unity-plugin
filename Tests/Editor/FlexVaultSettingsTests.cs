@@ -33,6 +33,21 @@ namespace FlexVault.VCS.Editor.Tests
         }
 
         [Test]
+        public void FetchPeriodSeconds_RoundTrips()
+        {
+            int original = FlexVaultSettings.FetchPeriodSeconds;
+            try
+            {
+                FlexVaultSettings.FetchPeriodSeconds = 45;
+                Assert.AreEqual(45, FlexVaultSettings.FetchPeriodSeconds);
+            }
+            finally
+            {
+                FlexVaultSettings.FetchPeriodSeconds = original;
+            }
+        }
+
+        [Test]
         public void GetEffectiveBinaryPath_WhenCustomFileExists_UsesCustom()
         {
             string tempFile = Path.Combine(Path.GetTempPath(), "fxv_test_binary_" + Guid.NewGuid().ToString("N") + ".exe");
