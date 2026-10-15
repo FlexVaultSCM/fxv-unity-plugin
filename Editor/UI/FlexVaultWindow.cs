@@ -38,6 +38,7 @@ namespace FlexVault.VCS.Editor.UI
         private readonly HashSet<string> m_loadingChangeInfo = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private bool m_isLoadingHistory;
         private bool m_isOperating;
+        private string m_lastHistoryFingerprint = string.Empty;
 
         [MenuItem("Window/Version Control/FlexVault", false, 10)]
         public static void ShowWindow()
@@ -73,8 +74,28 @@ namespace FlexVault.VCS.Editor.UI
             }
         }
 
+        private string GetCurrentHistoryFingerprint()
+        {
+            var status = FlexVaultStateCache.LatestStatus;
+            if (status == null) return string.Empty;
+            string branch = status.CurrentBranch ?? string.Empty;
+            string head = status.HeadCommit?.LocalSnapshot?.RevisionDisplay
+                ?? (status.SyncStatus?.SyncedRevision != null ? $"{branch}.{status.SyncStatus.SyncedRevision.Value}" : string.Empty);
+            return $"{branch}|{head}";
+        }
+
         private void OnStateChanged()
         {
+            if (m_currentTab == Tab.History && !m_isLoadingHistory)
+            {
+                string fp = GetCurrentHistoryFingerprint();
+                if (!string.IsNullOrEmpty(fp) && !string.Equals(fp, m_lastHistoryFingerprint, StringComparison.OrdinalIgnoreCase))
+                {
+                    LoadHistoryEntries();
+                    return;
+                }
+            }
+
             Repaint();
         }
 
@@ -113,6 +134,13 @@ namespace FlexVault.VCS.Editor.UI
         {
             EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
             {
+                if (GUILayout.Button("Settings...", EditorStyles.toolbarButton, GUILayout.Width(65)))
+                {
+                    SettingsService.OpenProjectSettings("Project/Version Control");
+                }
+
+                GUILayout.Space(6f);
+
                 string versionDisplay = GetVersionDisplay();
                 if (!string.IsNullOrEmpty(versionDisplay))
                 {
@@ -826,6 +854,7 @@ namespace FlexVault.VCS.Editor.UI
                 if (result.Success && result.Data != null)
                 {
                     m_historyEntries = result.Data.Entries ?? new List<CommitRefJson>();
+                    m_lastHistoryFingerprint = GetCurrentHistoryFingerprint();
                 }
             }
             catch (Exception ex)

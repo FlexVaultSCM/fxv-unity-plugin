@@ -23,6 +23,7 @@ namespace FlexVault.VCS.Editor.UI
         private string m_filterPath = string.Empty;
         private string m_statusMessage = string.Empty;
         private HistoryFilter m_historyFilter = HistoryFilter.All;
+        private string m_lastHistoryFingerprint = string.Empty;
 
         public static void ShowHistory(string targetPath = null)
         {
@@ -55,8 +56,28 @@ namespace FlexVault.VCS.Editor.UI
             }
         }
 
+        private string GetCurrentHistoryFingerprint()
+        {
+            var status = FlexVaultStateCache.LatestStatus;
+            if (status == null) return string.Empty;
+            string branch = status.CurrentBranch ?? string.Empty;
+            string head = status.HeadCommit?.LocalSnapshot?.RevisionDisplay
+                ?? (status.SyncStatus?.SyncedRevision != null ? $"{branch}.{status.SyncStatus.SyncedRevision.Value}" : string.Empty);
+            return $"{branch}|{head}";
+        }
+
         private void OnStateChanged()
         {
+            if (!m_isLoading)
+            {
+                string fp = GetCurrentHistoryFingerprint();
+                if (!string.IsNullOrEmpty(fp) && !string.Equals(fp, m_lastHistoryFingerprint, StringComparison.OrdinalIgnoreCase))
+                {
+                    LoadHistory();
+                    return;
+                }
+            }
+
             Repaint();
         }
 
@@ -143,6 +164,7 @@ namespace FlexVault.VCS.Editor.UI
                         m_entries = allEntries;
                         m_statusMessage = m_entries.Count == 0 ? "No history entries found." : string.Empty;
                     }
+                    m_lastHistoryFingerprint = GetCurrentHistoryFingerprint();
                 }
                 else
                 {
