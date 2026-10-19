@@ -227,6 +227,70 @@ namespace FlexVault.VCS.Editor.Tests
         }
 
         [Test]
+        public void CommitRefJson_GetPredecessorRevisionSpec_HandlesTruncatedAndDraftBoundaries()
+        {
+            var truncatedEntries = new List<CommitRefJson>
+            {
+                new CommitRefJson { Commit = new CommitInfoDetailJson { Branch = "main", Revision = 5, Type = "published" } },
+                new CommitRefJson { Commit = new CommitInfoDetailJson { Branch = "main", Revision = 5, Type = "draft", DraftRevision = 2 } },
+                new CommitRefJson { Commit = new CommitInfoDetailJson { Branch = "main", Revision = 5, Type = "draft", DraftRevision = 1 } }
+            };
+
+            // Entry 0 (published main.5): predecessor in list is missing, falls back to deterministic parent main.4
+            Assert.AreEqual("main.4", CommitRefJson.GetPredecessorRevisionSpec(truncatedEntries, 0));
+
+            // Entry 1 (draft main.5.2): predecessor in list is draft main.5.1
+            Assert.AreEqual("main.5.1", CommitRefJson.GetPredecessorRevisionSpec(truncatedEntries, 1));
+
+            // Entry 2 (draft main.5.1): parent is published baseline main.5, which is at index 0 (not index + 1), falls back to deterministic main.5
+            Assert.AreEqual("main.5", CommitRefJson.GetPredecessorRevisionSpec(truncatedEntries, 2));
+
+            // Unparented draft (Revision == null, DraftRevision == 1) has no deterministic parent when omitted
+            var unparentedEntries = new List<CommitRefJson>
+            {
+                new CommitRefJson { Commit = new CommitInfoDetailJson { Branch = "feature", Revision = null, Type = "draft", DraftRevision = 1 } }
+            };
+            Assert.IsNull(CommitRefJson.GetPredecessorRevisionSpec(unparentedEntries, 0));
+
+            // Initial commit (Revision == 0) has no predecessor
+            var rootEntries = new List<CommitRefJson>
+            {
+                new CommitRefJson { Commit = new CommitInfoDetailJson { Branch = "main", Revision = 0, Type = "published" } }
+            };
+            Assert.IsNull(CommitRefJson.GetPredecessorRevisionSpec(rootEntries, 0));
+        }
+
+        [Test]
+        public void CommitRefJson_DraftRevisionZero_FormatsAsDraftSpec()
+        {
+            var draftZero = new CommitRefJson
+            {
+                Commit = new CommitInfoDetailJson
+                {
+                    Branch = "main",
+                    Revision = 2,
+                    Type = "draft",
+                    DraftRevision = 0
+                }
+            };
+            Assert.AreEqual("main.2.0", draftZero.RevisionDisplay);
+            Assert.AreEqual("main.2.0", draftZero.RevisionSpec);
+
+            var unparentedDraftZero = new CommitRefJson
+            {
+                Commit = new CommitInfoDetailJson
+                {
+                    Branch = "main",
+                    Revision = null,
+                    Type = "draft",
+                    DraftRevision = 0
+                }
+            };
+            Assert.AreEqual("main.unpublished.0", unparentedDraftZero.RevisionDisplay);
+            Assert.AreEqual("main.-.0", unparentedDraftZero.RevisionSpec);
+        }
+
+        [Test]
         public void WorkspaceSyncPayload_Deserialization_ParsesConflictedAndUpdatedFiles()
         {
             string json = @"{

@@ -293,7 +293,7 @@ namespace FlexVault.VCS.Editor.Core
             get
             {
                 if (Commit == null) return "unknown";
-                if (Commit.Type == "draft" && Commit.DraftRevision.HasValue && Commit.DraftRevision.Value > 0)
+                if (Commit.Type == "draft" && Commit.DraftRevision.HasValue)
                 {
                     return Commit.Revision.HasValue
                         ? $"{Commit.Branch}.{Commit.Revision.Value}.{Commit.DraftRevision.Value}"
@@ -313,7 +313,7 @@ namespace FlexVault.VCS.Editor.Core
             get
             {
                 if (Commit == null) return string.Empty;
-                if (Commit.Type == "draft" && Commit.DraftRevision.HasValue && Commit.DraftRevision.Value > 0)
+                if (Commit.Type == "draft" && Commit.DraftRevision.HasValue)
                 {
                     return Commit.Revision.HasValue
                         ? $"{Commit.Branch}.{Commit.Revision.Value}.{Commit.DraftRevision.Value}"
@@ -355,8 +355,13 @@ namespace FlexVault.VCS.Editor.Core
                 return null;
             }
 
-            if (current?.Commit?.DraftRevision == 1 && current.Commit.Revision.HasValue)
+            if (current?.Commit?.DraftRevision == 1)
             {
+                if (!current.Commit.Revision.HasValue)
+                {
+                    return null;
+                }
+
                 ulong baseRev = current.Commit.Revision.Value;
                 for (int i = currentIndex + 1; i < entries.Count; i++)
                 {
@@ -367,9 +372,51 @@ namespace FlexVault.VCS.Editor.Core
                         return candidate;
                     }
                 }
+                return null;
             }
 
             return currentIndex + 1 < entries.Count ? entries[currentIndex + 1] : null;
+        }
+
+        // Resolves the CLI revision spec of the predecessor commit in a newest-first history list.
+        // Unlike GetPredecessorEntry, this also resolves deterministic parent specs (e.g. "main.3"
+        // for draft "main.3.1", or "main.2" for published "main.3") even when the parent entry was
+        // truncated out of the loaded history page.
+        public static string GetPredecessorRevisionSpec(IReadOnlyList<CommitRefJson> entries, int currentIndex)
+        {
+            var predEntry = GetPredecessorEntry(entries, currentIndex);
+            if (predEntry != null)
+            {
+                return predEntry.RevisionSpec;
+            }
+
+            if (entries == null || currentIndex < 0 || currentIndex >= entries.Count)
+            {
+                return null;
+            }
+
+            var commit = entries[currentIndex]?.Commit;
+            if (commit == null || string.IsNullOrEmpty(commit.Branch))
+            {
+                return null;
+            }
+
+            bool isPublished = string.Equals(commit.Type, "published", StringComparison.OrdinalIgnoreCase);
+            if (isPublished)
+            {
+                if (commit.Revision.HasValue && commit.Revision.Value > 0)
+                {
+                    return $"{commit.Branch}.{commit.Revision.Value - 1}";
+                }
+                return null;
+            }
+
+            if (commit.DraftRevision == 1 && commit.Revision.HasValue)
+            {
+                return $"{commit.Branch}.{commit.Revision.Value}";
+            }
+
+            return null;
         }
     }
 
