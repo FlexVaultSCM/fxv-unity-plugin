@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.10.0...v0.11.0) (2026-10-19)
+
+
+### Features
+
+* publish version.json manifest with release ([#44](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/44)) ([b6e6954](https://github.com/FlexVaultSCM/fxv-unity-plugin/commit/b6e6954252c6e5558111b7b741931cd4c85826f4))
+
 ## [0.10.0](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.9.0...v0.10.0) (2026-10-19)
 
 
