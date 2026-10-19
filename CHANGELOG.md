@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.9.0...v0.10.0) (2026-10-19)
+
+
+### Features
+
+* refresh history on branch switch, add terminal and settings shortcuts ([#42](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/42)) ([40bf20f](https://github.com/FlexVaultSCM/fxv-unity-plugin/commit/40bf20fadfa0e0e132b50781b3d0312df5f1d713))
+
 ## [0.9.0](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.8.0...v0.9.0) (2026-10-14)
 
 
