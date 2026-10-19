@@ -161,5 +161,23 @@ namespace FlexVault.VCS.Editor.Tests
             Assert.IsNull(FlexVaultVersionGuard.CachedVersion);
             Assert.IsFalse(FlexVaultVersionGuard.SupportsFetch);
         }
+
+        [Test]
+        public void ProcessRemoteManifest_ParsesNewerReleaseAndSetsAvailableUpdate()
+        {
+            FlexVaultVersionGuard.PluginVersion = "0.9.0";
+            string json = @"{
+  ""name"": ""unity"",
+  ""plugin_version"": ""0.10.0"",
+  ""tag"": ""v0.10.0"",
+  ""cli_compatibility"": {
+    ""min"": ""0.12.0"",
+    ""max"": ""0.14.0""
+  }
+}";
+            FlexVaultVersionGuard.ProcessRemoteManifest(json);
+            Assert.AreEqual("0.10.0", FlexVaultVersionGuard.AvailableUpdateVersion);
+            Assert.AreEqual(">= 0.12.0, < 0.14.0", FlexVaultVersionGuard.AvailableUpdateCliRange);
+        }
     }
 }

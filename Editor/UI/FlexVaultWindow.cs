@@ -70,6 +70,7 @@ namespace FlexVault.VCS.Editor.UI
             if (FlexVaultSettings.IsInFlexVaultRepository())
             {
                 FlexVaultStateCache.RefreshAsync();
+                _ = FlexVaultVersionGuard.CheckForRemoteUpdateAsync();
                 if (m_currentTab == Tab.History)
                 {
                     LoadHistoryEntries();
@@ -152,6 +153,10 @@ namespace FlexVault.VCS.Editor.UI
             if (FlexVaultVersionGuard.IsVersionCompatible == false)
             {
                 DrawVersionMismatchBanner();
+            }
+            else
+            {
+                DrawUpdateAvailableBanner();
             }
 
             GUILayout.Space(2f);
@@ -265,6 +270,30 @@ namespace FlexVault.VCS.Editor.UI
                 {
                     FlexVaultVersionGuard.ResetCachedVersion();
                     FlexVaultStateCache.RefreshAsync(skipScan: false, force: true);
+                }
+            }
+            EditorGUILayout.EndHorizontal();
+            GUILayout.Space(4f);
+        }
+
+        private void DrawUpdateAvailableBanner()
+        {
+            if (string.IsNullOrEmpty(FlexVaultVersionGuard.AvailableUpdateVersion)) return;
+
+            string rangeInfo = !string.IsNullOrEmpty(FlexVaultVersionGuard.AvailableUpdateCliRange)
+                ? $" (supports fxv CLI {FlexVaultVersionGuard.AvailableUpdateCliRange})"
+                : "";
+
+            EditorGUILayout.HelpBox(
+                $"A new FlexVault Unity plugin update is available: v{FlexVaultVersionGuard.AvailableUpdateVersion}{rangeInfo}.",
+                MessageType.Info
+            );
+
+            EditorGUILayout.BeginHorizontal();
+            {
+                if (GUILayout.Button("View Release on GitHub", EditorStyles.miniButton, GUILayout.Width(160)))
+                {
+                    Application.OpenURL("https://github.com/FlexVaultSCM/fxv-unity-plugin/releases/latest");
                 }
             }
             EditorGUILayout.EndHorizontal();

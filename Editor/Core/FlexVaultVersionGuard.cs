@@ -117,12 +117,79 @@ namespace FlexVault.VCS.Editor.Core
         private static string s_lastErrorMessage;
         private static FxvCliVersion? s_cachedVersion;
 
+        public const string RemoteVersionJsonUrl = "https://github.com/FlexVaultSCM/fxv-unity-plugin/releases/latest/download/version.json";
+        public static string AvailableUpdateVersion { get; private set; }
+        public static string AvailableUpdateCliRange { get; private set; }
+        private static bool s_isCheckingRemoteUpdate;
+        private static double s_lastRemoteCheckTime = -1;
+        private const double RemoteCheckIntervalSeconds = 3600.0; // 1 hour
+
         public static void ResetCachedVersion()
         {
             s_isVersionCompatible = null;
             s_lastVersionString = null;
             s_lastErrorMessage = null;
             s_cachedVersion = null;
+        }
+
+        public static void CheckForRemoteUpdateAsync()
+        {
+            double now = UnityEditor.EditorApplication.timeSinceStartup;
+            if (s_isCheckingRemoteUpdate || (s_lastRemoteCheckTime >= 0 && now - s_lastRemoteCheckTime < RemoteCheckIntervalSeconds))
+            {
+                return;
+            }
+
+            s_isCheckingRemoteUpdate = true;
+            s_lastRemoteCheckTime = now;
+
+            var request = UnityEngine.Networking.UnityWebRequest.Get(RemoteVersionJsonUrl);
+            request.timeout = 10;
+            var asyncOp = request.SendWebRequest();
+            asyncOp.completed += _ =>
+            {
+                try
+                {
+                    if (request.result == UnityEngine.Networking.UnityWebRequest.Result.Success && !string.IsNullOrEmpty(request.downloadHandler.text))
+                    {
+                        ProcessRemoteManifest(request.downloadHandler.text);
+                    }
+                }
+                catch
+                {
+                    // Non-fatal background check
+                }
+                finally
+                {
+                    request.Dispose();
+                    s_isCheckingRemoteUpdate = false;
+                }
+            };
+        }
+
+        public static void ProcessRemoteManifest(string jsonText)
+        {
+            if (string.IsNullOrEmpty(jsonText)) return;
+            var match = System.Text.RegularExpressions.Regex.Match(jsonText, "\"plugin_version\"\\s*:\\s*\"([^\"]+)\"");
+            if (!match.Success) return;
+            string remoteVerStr = match.Groups[1].Value;
+            if (!FxvCliVersion.TryParse(remoteVerStr, out var remoteVer)) return;
+
+            string currentVerStr = PluginVersion;
+            if (FxvCliVersion.TryParse(currentVerStr, out var currentVer))
+            {
+                if (remoteVer > currentVer)
+                {
+                    AvailableUpdateVersion = remoteVerStr;
+
+                    var minMatch = System.Text.RegularExpressions.Regex.Match(jsonText, "\"min\"\\s*:\\s*\"([^\"]+)\"");
+                    var maxMatch = System.Text.RegularExpressions.Regex.Match(jsonText, "\"max\"\\s*:\\s*\"([^\"]+)\"");
+                    if (minMatch.Success && maxMatch.Success)
+                    {
+                        AvailableUpdateCliRange = $">= {minMatch.Groups[1].Value}, < {maxMatch.Groups[1].Value}";
+                    }
+                }
+            }
         }
 
         public static bool CheckAndCacheVersion(string versionStr, out string errorMessage)
@@ -139,6 +206,10 @@ namespace FlexVault.VCS.Editor.Core
             {
                 s_cachedVersion = null;
             }
+
+            // Periodically check if a newer plugin release is available
+            CheckForRemoteUpdateAsync();
+
             return ok;
         }
 
