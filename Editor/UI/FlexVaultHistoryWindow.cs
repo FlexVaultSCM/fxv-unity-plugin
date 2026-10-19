@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using FlexVault.VCS.Editor.Core;
 using UnityEditor;
@@ -18,12 +19,14 @@ namespace FlexVault.VCS.Editor.UI
         }
 
         private Vector2 m_scrollPos;
+        private List<CommitRefJson> m_allEntries = new List<CommitRefJson>();
         private List<CommitRefJson> m_entries = new List<CommitRefJson>();
         private bool m_isLoading;
         private string m_filterPath = string.Empty;
         private string m_statusMessage = string.Empty;
         private HistoryFilter m_historyFilter = HistoryFilter.All;
         private string m_lastHistoryFingerprint = string.Empty;
+        private CancellationTokenSource m_loadHistoryCts;
 
         private const float HistoryColToggleWidth = 24f;
         private const float HistoryColTypeWidth = 85f;
@@ -53,6 +56,9 @@ namespace FlexVault.VCS.Editor.UI
         private void OnDisable()
         {
             FlexVaultStateCache.OnStateChanged -= OnStateChanged;
+            m_loadHistoryCts?.Cancel();
+            m_loadHistoryCts?.Dispose();
+            m_loadHistoryCts = null;
         }
 
         private void OnFocus()
@@ -63,22 +69,12 @@ namespace FlexVault.VCS.Editor.UI
             }
         }
 
-        private string GetCurrentHistoryFingerprint()
-        {
-            var status = FlexVaultStateCache.LatestStatus;
-            if (status == null) return string.Empty;
-            string branch = status.CurrentBranch ?? string.Empty;
-            string head = status.HeadCommit?.LocalSnapshot?.RevisionDisplay
-                ?? (status.SyncStatus?.SyncedRevision != null ? $"{branch}.{status.SyncStatus.SyncedRevision.Value}" : string.Empty);
-            return $"{branch}|{head}";
-        }
-
         private void OnStateChanged()
         {
-            if (!m_isLoading)
+            string fp = FlexVaultStateCache.GetCurrentHistoryFingerprint();
+            if (!string.IsNullOrEmpty(fp) && !string.Equals(fp, m_lastHistoryFingerprint, StringComparison.OrdinalIgnoreCase))
             {
-                string fp = GetCurrentHistoryFingerprint();
-                if (!string.IsNullOrEmpty(fp) && !string.Equals(fp, m_lastHistoryFingerprint, StringComparison.OrdinalIgnoreCase))
+                if (!m_isLoading)
                 {
                     LoadHistory();
                     return;
@@ -90,7 +86,10 @@ namespace FlexVault.VCS.Editor.UI
 
         public void RefreshHistory()
         {
+            m_loadHistoryCts?.Cancel();
             m_expandedRevisions.Clear();
+            m_changeInfoCache.Clear();
+            m_loadingChangeInfo.Clear();
             m_lastHistoryFingerprint = string.Empty;
             LoadHistory();
         }
@@ -108,7 +107,13 @@ namespace FlexVault.VCS.Editor.UI
                 FlexVaultStateCache.RefreshAsync();
             }
 
-            string requestFingerprint = GetCurrentHistoryFingerprint();
+            m_loadHistoryCts?.Cancel();
+            m_loadHistoryCts?.Dispose();
+            var cts = new CancellationTokenSource();
+            m_loadHistoryCts = cts;
+            CancellationToken ct = cts.Token;
+
+            string requestFingerprint = FlexVaultStateCache.GetCurrentHistoryFingerprint();
             m_isLoading = true;
             m_statusMessage = "Loading revision history...";
             Repaint();
@@ -116,10 +121,16 @@ namespace FlexVault.VCS.Editor.UI
             try
             {
                 int fetchCount = !string.IsNullOrEmpty(m_filterPath) ? 100 : 50;
-                var result = await FxvRunner.GetHistoryAsync(count: fetchCount);
+                var result = await FxvRunner.GetHistoryAsync(count: fetchCount, ct: ct);
+                if (ct.IsCancellationRequested)
+                {
+                    return;
+                }
+
                 if (result.Success && result.Data != null)
                 {
                     var allEntries = result.Data.Entries ?? new List<CommitRefJson>();
+                    m_allEntries = allEntries;
 
                     if (!string.IsNullOrEmpty(m_filterPath))
                     {
@@ -128,19 +139,31 @@ namespace FlexVault.VCS.Editor.UI
 
                         string normalizedFilter = FlexVaultMetaHelper.NormalizeSeparators(m_filterPath);
                         string companionFilter = FlexVaultMetaHelper.GetCompanionMetaPath(normalizedFilter);
+                        var filtered = new List<CommitRefJson>();
 
-                        var fetchTasks = allEntries.Select(async entry =>
+                        foreach (var entry in allEntries)
                         {
+                            if (ct.IsCancellationRequested)
+                            {
+                                return;
+                            }
+
                             string rev = entry.RevisionDisplay;
                             string revSpec = entry.RevisionSpec;
                             ChangeInfoPayload payload = null;
-                            if (m_changeInfoCache.TryGetValue(rev, out var cached))
+                            if (m_changeInfoCache.TryGetValue(rev, out var cached) &&
+                                (string.IsNullOrEmpty(entry.CommitHash) || string.IsNullOrEmpty(cached.CommitHash) ||
+                                 string.Equals(entry.CommitHash, cached.CommitHash, StringComparison.OrdinalIgnoreCase)))
                             {
                                 payload = cached;
                             }
                             else
                             {
-                                var changeResult = await FxvRunner.GetChangeInfoAsync(revSpec);
+                                var changeResult = await FxvRunner.GetChangeInfoAsync(revSpec, ct);
+                                if (ct.IsCancellationRequested)
+                                {
+                                    return;
+                                }
                                 if (changeResult.Success && changeResult.Data != null)
                                 {
                                     payload = changeResult.Data;
@@ -163,16 +186,13 @@ namespace FlexVault.VCS.Editor.UI
                                 }
                             }
 
-                            return (entry, touchesTarget);
-                        }).ToList();
+                            if (touchesTarget || FlexVaultStateCache.IsCurrentWorkspaceRevision(entry, allEntries))
+                            {
+                                filtered.Add(entry);
+                            }
+                        }
 
-                        var pairs = await Task.WhenAll(fetchTasks);
-                        m_entries = pairs.Where(p =>
-                        {
-                            if (p.touchesTarget) return true;
-                            if (FlexVaultStateCache.IsCurrentWorkspaceRevision(p.entry, allEntries)) return true;
-                            return false;
-                        }).Select(p => p.entry).ToList();
+                        m_entries = filtered;
                         m_statusMessage = m_entries.Count == 0 ? $"No revisions found that modified '{m_filterPath}'." : string.Empty;
                     }
                     else
@@ -180,12 +200,16 @@ namespace FlexVault.VCS.Editor.UI
                         m_entries = allEntries;
                         m_statusMessage = m_entries.Count == 0 ? "No history entries found." : string.Empty;
                     }
-                    m_lastHistoryFingerprint = GetCurrentHistoryFingerprint();
+                    m_lastHistoryFingerprint = FlexVaultStateCache.GetCurrentHistoryFingerprint();
                 }
                 else
                 {
                     m_statusMessage = $"Failed to load history: {result.ErrorMessage}";
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                return;
             }
             catch (Exception ex)
             {
@@ -193,17 +217,20 @@ namespace FlexVault.VCS.Editor.UI
             }
             finally
             {
-                m_isLoading = false;
-                string currentFingerprint = GetCurrentHistoryFingerprint();
-                if (!string.IsNullOrEmpty(currentFingerprint) &&
-                    !string.Equals(currentFingerprint, m_lastHistoryFingerprint, StringComparison.OrdinalIgnoreCase) &&
-                    !string.Equals(currentFingerprint, requestFingerprint, StringComparison.OrdinalIgnoreCase))
+                if (m_loadHistoryCts == cts)
                 {
-                    LoadHistory();
-                }
-                else
-                {
-                    Repaint();
+                    m_isLoading = false;
+                    string currentFingerprint = FlexVaultStateCache.GetCurrentHistoryFingerprint();
+                    if (!string.IsNullOrEmpty(currentFingerprint) &&
+                        !string.Equals(currentFingerprint, m_lastHistoryFingerprint, StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(currentFingerprint, requestFingerprint, StringComparison.OrdinalIgnoreCase))
+                    {
+                        LoadHistory();
+                    }
+                    else
+                    {
+                        Repaint();
+                    }
                 }
             }
         }
@@ -370,12 +397,12 @@ namespace FlexVault.VCS.Editor.UI
                             DiffWithWorkingCopy(m_filterPath, revSpec);
                         }
 
-                        var prevEntry = CommitRefJson.GetPredecessorEntry(m_entries, index);
-                        if (prevEntry != null)
+                        string prevRevSpec = ResolvePredecessorSpecForEntry(entry, index);
+                        if (!string.IsNullOrEmpty(prevRevSpec) && !IsTargetFileAddedInEntry(rev, m_filterPath))
                         {
                             if (GUILayout.Button("Diff vs Prev", EditorStyles.miniButton, GUILayout.Width(85)))
                             {
-                                DiffTwoRevisions(m_filterPath, prevEntry.RevisionSpec, revSpec);
+                                DiffTwoRevisions(m_filterPath, prevRevSpec, revSpec);
                             }
                         }
                     }
@@ -420,6 +447,37 @@ namespace FlexVault.VCS.Editor.UI
 
             GUI.backgroundColor = prevBg;
             GUILayout.Space(2f);
+        }
+
+        private string ResolvePredecessorSpecForEntry(CommitRefJson entry, int filteredIndex)
+        {
+            var sourceList = m_allEntries != null && m_allEntries.Count > 0 ? m_allEntries : m_entries;
+            int sourceIndex = sourceList.IndexOf(entry);
+            if (sourceIndex < 0)
+            {
+                sourceIndex = filteredIndex;
+                sourceList = m_entries;
+            }
+            return CommitRefJson.GetPredecessorRevisionSpec(sourceList, sourceIndex);
+        }
+
+        private bool IsTargetFileAddedInEntry(string cacheKeyRevision, string filterPath)
+        {
+            if (string.IsNullOrEmpty(filterPath) || !m_changeInfoCache.TryGetValue(cacheKeyRevision, out var payload) || payload?.Changes == null)
+            {
+                return false;
+            }
+
+            string normalizedFilter = FlexVaultMetaHelper.NormalizeSeparators(filterPath);
+            foreach (var change in payload.Changes)
+            {
+                string changePath = FlexVaultMetaHelper.NormalizeSeparators(change.Path);
+                if (string.Equals(changePath, normalizedFilter, StringComparison.OrdinalIgnoreCase))
+                {
+                    return string.Equals(change.Action, "added", StringComparison.OrdinalIgnoreCase);
+                }
+            }
+            return false;
         }
 
         private async void EnsureChangeInfoLoaded(string cacheKeyRevision, string queryRevisionSpec = null)
@@ -470,6 +528,8 @@ namespace FlexVault.VCS.Editor.UI
                 return;
             }
 
+            string prevRevSpec = ResolvePredecessorSpecForEntry(entry, commitIndex);
+
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
             {
                 EditorGUILayout.BeginHorizontal();
@@ -501,12 +561,11 @@ namespace FlexVault.VCS.Editor.UI
                                 DiffWithWorkingCopy(file.Path, revSpec);
                             }
 
-                            var prev = CommitRefJson.GetPredecessorEntry(m_entries, commitIndex);
-                            if (prev != null && !string.Equals(file.Action, "added", StringComparison.OrdinalIgnoreCase))
+                            if (!string.IsNullOrEmpty(prevRevSpec) && !string.Equals(file.Action, "added", StringComparison.OrdinalIgnoreCase))
                             {
                                 if (GUILayout.Button("Diff vs Prev", EditorStyles.miniButton, GUILayout.Width(80)))
                                 {
-                                    DiffTwoRevisions(file.Path, prev.RevisionSpec, revSpec);
+                                    DiffTwoRevisions(file.Path, prevRevSpec, revSpec);
                                 }
                             }
                         }

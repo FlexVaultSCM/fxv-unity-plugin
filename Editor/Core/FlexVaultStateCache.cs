@@ -206,6 +206,24 @@ namespace FlexVault.VCS.Editor.Core
             return false;
         }
 
+        public static string GetCurrentHistoryFingerprint()
+        {
+            StatusPayload status;
+            lock (s_lock)
+            {
+                status = s_latestStatus;
+            }
+
+            if (status == null) return string.Empty;
+            string branch = status.CurrentBranch ?? string.Empty;
+            string localHead = status.HeadCommit?.LocalSnapshot != null
+                ? $"{status.HeadCommit.LocalSnapshot.RevisionSpec}:{status.HeadCommit.LocalSnapshot.CommitHash}"
+                : (status.SyncStatus?.SyncedRevision != null ? $"{branch}.{status.SyncStatus.SyncedRevision.Value}" : string.Empty);
+            string publishedHead = status.HeadCommit?.PublishedHead?.RevisionSpec
+                ?? (status.SyncStatus != null ? $"{branch}.{status.SyncStatus.PublishedHeadRevision}" : string.Empty);
+            return $"{branch}|{localHead}|{publishedHead}";
+        }
+
         public static bool IsCurrentWorkspaceRevision(CommitRefJson entry, IEnumerable<CommitRefJson> allEntries = null)
         {
             if (entry == null) return false;

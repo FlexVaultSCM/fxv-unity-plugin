@@ -313,10 +313,12 @@ namespace FlexVault.VCS.Editor.Core
             {
                 try
                 {
-                    var process = System.Diagnostics.Process.Start(psi);
-                    if (process != null || psi.UseShellExecute)
+                    using (var process = System.Diagnostics.Process.Start(psi))
                     {
-                        return true;
+                        if (process != null || psi.UseShellExecute)
+                        {
+                            return true;
+                        }
                     }
                 }
                 catch

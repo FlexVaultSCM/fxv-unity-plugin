@@ -499,5 +499,99 @@ namespace FlexVault.VCS.Editor.Tests
             // Reset state
             pendingField.SetValue(null, false);
         }
+
+        [Test]
+        public void StateCache_GetCurrentHistoryFingerprint_ChangesOnBranchSnapshotOrRemoteHead()
+        {
+            InvokeUpdateCache(null);
+            Assert.AreEqual(string.Empty, FlexVaultStateCache.GetCurrentHistoryFingerprint());
+
+            var payload1 = new StatusPayload
+            {
+                CurrentBranch = "main",
+                HeadCommit = new HeadCommitJson
+                {
+                    LocalSnapshot = new CommitRefJson
+                    {
+                        Commit = new CommitInfoDetailJson { Branch = "main", Revision = 1, Type = "published" },
+                        CommitHash = "hash1"
+                    }
+                },
+                SyncStatus = new SyncStatusJson
+                {
+                    PublishedHeadRevision = 1
+                }
+            };
+            InvokeUpdateCache(payload1);
+            string fp1 = FlexVaultStateCache.GetCurrentHistoryFingerprint();
+            Assert.IsNotEmpty(fp1);
+
+            // Same state yields same fingerprint
+            string fp1Same = FlexVaultStateCache.GetCurrentHistoryFingerprint();
+            Assert.AreEqual(fp1, fp1Same);
+
+            // Change remote published head revision
+            var payload2 = new StatusPayload
+            {
+                CurrentBranch = "main",
+                HeadCommit = new HeadCommitJson
+                {
+                    LocalSnapshot = new CommitRefJson
+                    {
+                        Commit = new CommitInfoDetailJson { Branch = "main", Revision = 1, Type = "published" },
+                        CommitHash = "hash1"
+                    }
+                },
+                SyncStatus = new SyncStatusJson
+                {
+                    PublishedHeadRevision = 2
+                }
+            };
+            InvokeUpdateCache(payload2);
+            string fp2 = FlexVaultStateCache.GetCurrentHistoryFingerprint();
+            Assert.AreNotEqual(fp1, fp2);
+
+            // Change local snapshot commit hash
+            var payload3 = new StatusPayload
+            {
+                CurrentBranch = "main",
+                HeadCommit = new HeadCommitJson
+                {
+                    LocalSnapshot = new CommitRefJson
+                    {
+                        Commit = new CommitInfoDetailJson { Branch = "main", Revision = 1, Type = "published" },
+                        CommitHash = "hash2"
+                    }
+                },
+                SyncStatus = new SyncStatusJson
+                {
+                    PublishedHeadRevision = 2
+                }
+            };
+            InvokeUpdateCache(payload3);
+            string fp3 = FlexVaultStateCache.GetCurrentHistoryFingerprint();
+            Assert.AreNotEqual(fp2, fp3);
+
+            // Change branch
+            var payload4 = new StatusPayload
+            {
+                CurrentBranch = "feature",
+                HeadCommit = new HeadCommitJson
+                {
+                    LocalSnapshot = new CommitRefJson
+                    {
+                        Commit = new CommitInfoDetailJson { Branch = "feature", Revision = 1, Type = "published" },
+                        CommitHash = "hash2"
+                    }
+                },
+                SyncStatus = new SyncStatusJson
+                {
+                    PublishedHeadRevision = 2
+                }
+            };
+            InvokeUpdateCache(payload4);
+            string fp4 = FlexVaultStateCache.GetCurrentHistoryFingerprint();
+            Assert.AreNotEqual(fp3, fp4);
+        }
     }
 }
