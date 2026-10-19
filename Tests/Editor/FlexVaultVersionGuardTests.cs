@@ -161,5 +161,151 @@ namespace FlexVault.VCS.Editor.Tests
             Assert.IsNull(FlexVaultVersionGuard.CachedVersion);
             Assert.IsFalse(FlexVaultVersionGuard.SupportsFetch);
         }
+
+        [Test]
+        public void ProcessRemoteManifest_ParsesNewerReleaseAndSetsAvailableUpdate_WhenCliCompatible()
+        {
+            FlexVaultVersionGuard.ResetCachedVersion();
+            FlexVaultVersionGuard.CheckAndCacheVersion("0.12.0", out _);
+            FlexVaultVersionGuard.PluginVersion = "0.9.0";
+            string json = @"{
+  ""name"": ""unity"",
+  ""plugin_version"": ""0.10.0"",
+  ""tag"": ""v0.10.0"",
+  ""cli_compatibility"": {
+    ""min"": ""0.12.0"",
+    ""max"": ""0.14.0""
+  }
+}";
+            FlexVaultVersionGuard.ProcessRemoteManifest(json);
+            Assert.AreEqual("0.10.0", FlexVaultVersionGuard.AvailableUpdateVersion);
+            Assert.AreEqual(">= 0.12.0, < 0.14.0", FlexVaultVersionGuard.AvailableUpdateCliRange);
+        }
+
+        [Test]
+        public void ProcessRemoteManifest_FiltersOutUpdate_WhenLocalCliTooLow()
+        {
+            FlexVaultVersionGuard.ResetCachedVersion();
+            FlexVaultVersionGuard.CheckAndCacheVersion("0.11.0", out _);
+            FlexVaultVersionGuard.PluginVersion = "0.9.0";
+            string json = @"{
+  ""name"": ""unity"",
+  ""plugin_version"": ""0.10.0"",
+  ""tag"": ""v0.10.0"",
+  ""cli_compatibility"": {
+    ""min"": ""0.12.0"",
+    ""max"": ""0.14.0""
+  }
+}";
+            FlexVaultVersionGuard.ProcessRemoteManifest(json);
+            Assert.IsNull(FlexVaultVersionGuard.AvailableUpdateVersion);
+            Assert.IsNull(FlexVaultVersionGuard.AvailableUpdateCliRange);
+        }
+
+        [Test]
+        public void ProcessRemoteManifest_FiltersOutUpdate_WhenLocalCliTooHigh()
+        {
+            FlexVaultVersionGuard.ResetCachedVersion();
+            FlexVaultVersionGuard.CheckAndCacheVersion("0.14.0", out _);
+            FlexVaultVersionGuard.PluginVersion = "0.9.0";
+            string json = @"{
+  ""name"": ""unity"",
+  ""plugin_version"": ""0.10.0"",
+  ""tag"": ""v0.10.0"",
+  ""cli_compatibility"": {
+    ""min"": ""0.12.0"",
+    ""max"": ""0.14.0""
+  }
+}";
+            FlexVaultVersionGuard.ProcessRemoteManifest(json);
+            Assert.IsNull(FlexVaultVersionGuard.AvailableUpdateVersion);
+            Assert.IsNull(FlexVaultVersionGuard.AvailableUpdateCliRange);
+        }
+
+        [Test]
+        public void ProcessRemoteManifest_FiltersOutUpdate_WhenNoLocalCliKnown()
+        {
+            FlexVaultVersionGuard.ResetCachedVersion();
+            FlexVaultVersionGuard.PluginVersion = "0.9.0";
+            string json = @"{
+  ""name"": ""unity"",
+  ""plugin_version"": ""0.10.0"",
+  ""tag"": ""v0.10.0"",
+  ""cli_compatibility"": {
+    ""min"": ""0.12.0"",
+    ""max"": ""0.14.0""
+  }
+}";
+            FlexVaultVersionGuard.ProcessRemoteManifest(json);
+            Assert.IsNull(FlexVaultVersionGuard.AvailableUpdateVersion);
+            Assert.IsNull(FlexVaultVersionGuard.AvailableUpdateCliRange);
+        }
+
+        [Test]
+        public void ProcessRemoteManifest_FiltersOutUpdate_WhenPluginVersionOlderOrEqual()
+        {
+            FlexVaultVersionGuard.ResetCachedVersion();
+            FlexVaultVersionGuard.CheckAndCacheVersion("0.12.0", out _);
+            FlexVaultVersionGuard.PluginVersion = "0.10.0";
+            string json = @"{
+  ""name"": ""unity"",
+  ""plugin_version"": ""0.10.0"",
+  ""tag"": ""v0.10.0"",
+  ""cli_compatibility"": {
+    ""min"": ""0.12.0"",
+    ""max"": ""0.14.0""
+  }
+}";
+            FlexVaultVersionGuard.ProcessRemoteManifest(json);
+            Assert.IsNull(FlexVaultVersionGuard.AvailableUpdateVersion);
+            Assert.IsNull(FlexVaultVersionGuard.AvailableUpdateCliRange);
+        }
+
+        [Test]
+        public void ResetCachedVersion_ClearsAvailableUpdate()
+        {
+            FlexVaultVersionGuard.ResetCachedVersion();
+            FlexVaultVersionGuard.CheckAndCacheVersion("0.12.0", out _);
+            FlexVaultVersionGuard.PluginVersion = "0.9.0";
+            string json = @"{
+  ""name"": ""unity"",
+  ""plugin_version"": ""0.10.0"",
+  ""tag"": ""v0.10.0"",
+  ""cli_compatibility"": {
+    ""min"": ""0.12.0"",
+    ""max"": ""0.14.0""
+  }
+}";
+            FlexVaultVersionGuard.ProcessRemoteManifest(json);
+            Assert.AreEqual("0.10.0", FlexVaultVersionGuard.AvailableUpdateVersion);
+
+            FlexVaultVersionGuard.ResetCachedVersion();
+            Assert.IsNull(FlexVaultVersionGuard.AvailableUpdateVersion);
+            Assert.IsNull(FlexVaultVersionGuard.AvailableUpdateCliRange);
+        }
+
+        [Test]
+        public void CheckAndCacheVersion_ReEvaluatesCachedRemoteManifest()
+        {
+            FlexVaultVersionGuard.ResetCachedVersion();
+            FlexVaultVersionGuard.PluginVersion = "0.9.0";
+            string json = @"{
+  ""name"": ""unity"",
+  ""plugin_version"": ""0.10.0"",
+  ""tag"": ""v0.10.0"",
+  ""cli_compatibility"": {
+    ""min"": ""0.12.0"",
+    ""max"": ""0.14.0""
+  }
+}";
+            // Process manifest before CLI version is known
+            FlexVaultVersionGuard.ProcessRemoteManifest(json);
+            Assert.IsNull(FlexVaultVersionGuard.AvailableUpdateVersion);
+
+            // Now CLI version is checked and cached; it should automatically re-evaluate
+            FlexVaultVersionGuard.CheckAndCacheVersion("0.12.0", out _);
+            Assert.AreEqual("0.10.0", FlexVaultVersionGuard.AvailableUpdateVersion);
+            Assert.AreEqual(">= 0.12.0, < 0.14.0", FlexVaultVersionGuard.AvailableUpdateCliRange);
+        }
     }
 }

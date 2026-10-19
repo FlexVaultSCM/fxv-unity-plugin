@@ -6,4 +6,5 @@ release-please*.json
 *.tgz
 *.sha256
 *.zip
+version.json*
 .fxv_workspace/

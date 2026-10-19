@@ -67,9 +67,11 @@ namespace FlexVault.VCS.Editor.UI
         private void OnEnable()
         {
             FlexVaultStateCache.OnStateChanged += OnStateChanged;
+            FlexVaultVersionGuard.OnAvailableUpdateChanged += Repaint;
             if (FlexVaultSettings.IsInFlexVaultRepository())
             {
                 FlexVaultStateCache.RefreshAsync();
+                FlexVaultVersionGuard.CheckForRemoteUpdateAsync();
                 if (m_currentTab == Tab.History)
                 {
                     LoadHistoryEntries();
@@ -80,6 +82,7 @@ namespace FlexVault.VCS.Editor.UI
         private void OnDisable()
         {
             FlexVaultStateCache.OnStateChanged -= OnStateChanged;
+            FlexVaultVersionGuard.OnAvailableUpdateChanged -= Repaint;
         }
 
         private void OnFocus()
@@ -154,6 +157,8 @@ namespace FlexVault.VCS.Editor.UI
                 DrawVersionMismatchBanner();
             }
 
+            DrawUpdateAvailableBanner();
+
             GUILayout.Space(2f);
             DrawTabBar();
             GUILayout.Space(4f);
@@ -177,6 +182,11 @@ namespace FlexVault.VCS.Editor.UI
                 if (GUILayout.Button("Settings...", EditorStyles.toolbarButton, GUILayout.Width(65)))
                 {
                     SettingsService.OpenProjectSettings("Project/Version Control");
+                }
+
+                if (GUILayout.Button("Docs", EditorStyles.toolbarButton, GUILayout.Width(45)))
+                {
+                    Application.OpenURL(FlexVaultVersionGuard.DocumentationUrl);
                 }
 
                 GUILayout.Space(6f);
@@ -236,6 +246,11 @@ namespace FlexVault.VCS.Editor.UI
                 SettingsService.OpenProjectSettings("Project/Version Control");
             }
             GUILayout.Space(5f);
+            if (GUILayout.Button("Documentation", GUILayout.Height(25)))
+            {
+                Application.OpenURL(FlexVaultVersionGuard.DocumentationUrl);
+            }
+            GUILayout.Space(5f);
             if (GUILayout.Button("Open Workspace in Terminal", GUILayout.Height(25)))
             {
                 FlexVaultSettings.OpenWorkspaceInTerminal();
@@ -261,10 +276,40 @@ namespace FlexVault.VCS.Editor.UI
                     SettingsService.OpenProjectSettings("Project/Version Control");
                 }
 
+                if (GUILayout.Button("Docs", EditorStyles.miniButton, GUILayout.Width(50)))
+                {
+                    Application.OpenURL(FlexVaultVersionGuard.DocumentationUrl);
+                }
+
                 if (GUILayout.Button("Retry Version Check", EditorStyles.miniButton, GUILayout.Width(150)))
                 {
                     FlexVaultVersionGuard.ResetCachedVersion();
+                    FlexVaultVersionGuard.CheckForRemoteUpdateAsync();
                     FlexVaultStateCache.RefreshAsync(skipScan: false, force: true);
+                }
+            }
+            EditorGUILayout.EndHorizontal();
+            GUILayout.Space(4f);
+        }
+
+        private void DrawUpdateAvailableBanner()
+        {
+            if (string.IsNullOrEmpty(FlexVaultVersionGuard.AvailableUpdateVersion)) return;
+
+            string rangeInfo = !string.IsNullOrEmpty(FlexVaultVersionGuard.AvailableUpdateCliRange)
+                ? $" (supports fxv CLI {FlexVaultVersionGuard.AvailableUpdateCliRange})"
+                : "";
+
+            EditorGUILayout.HelpBox(
+                $"A new FlexVault Unity plugin update is available: v{FlexVaultVersionGuard.AvailableUpdateVersion}{rangeInfo}.",
+                MessageType.Warning
+            );
+
+            EditorGUILayout.BeginHorizontal();
+            {
+                if (GUILayout.Button("View Documentation", EditorStyles.miniButton, GUILayout.Width(150)))
+                {
+                    Application.OpenURL(FlexVaultVersionGuard.DocumentationUrl);
                 }
             }
             EditorGUILayout.EndHorizontal();
