@@ -152,7 +152,7 @@ namespace FlexVault.VCS.Editor.UI
             var status = FlexVaultStateCache.LatestStatus;
             string currentUser = status?.CurrentUser;
             string currentBranch = status?.CurrentBranch ?? "unknown";
-            string currentRevision = status?.HeadCommit?.LocalSnapshot?.RevisionDisplay
+            string currentRevision = status?.HeadCommit?.LocalSnapshot?.RevisionSpec
                 ?? (status?.SyncStatus?.SyncedRevision != null && status?.CurrentBranch != null
                     ? $"{status.CurrentBranch}.{status.SyncStatus.SyncedRevision.Value}"
                     : null);
@@ -370,12 +370,14 @@ namespace FlexVault.VCS.Editor.UI
 
                 // If starting from a specific revision different from the current workspace revision,
                 // the fxv CLI requires --no-switch during creation, followed by a branch switch / goto.
-                string currentRevision = status?.HeadCommit?.LocalSnapshot?.RevisionDisplay
+                string currentRevision = status?.HeadCommit?.LocalSnapshot?.RevisionSpec
                     ?? (status?.SyncStatus?.SyncedRevision != null && status?.CurrentBranch != null
                         ? $"{status.CurrentBranch}.{status.SyncStatus.SyncedRevision.Value}"
                         : null);
 
-                bool isHistoricalRevision = fromRev != null && !string.Equals(fromRev, currentRevision, StringComparison.OrdinalIgnoreCase);
+                bool isHistoricalRevision = fromRev != null &&
+                    !string.Equals(fromRev, currentRevision, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(fromRev, status?.HeadCommit?.LocalSnapshot?.RevisionDisplay, StringComparison.OrdinalIgnoreCase);
                 bool needTwoStepSwitch = m_switchWorkspace && isHistoricalRevision;
                 bool createNoSwitch = !m_switchWorkspace || needTwoStepSwitch;
 
@@ -425,12 +427,15 @@ namespace FlexVault.VCS.Editor.UI
                 }
                 Debug.Log($"[FlexVault] {msg}");
 
-                await FlexVaultStateCache.RefreshBranchesAsync();
-
                 if (switchedSuccessfully)
                 {
                     AssetDatabase.Refresh();
-                    FlexVaultStateCache.RefreshAsync();
+                    FlexVaultStateCache.RefreshAsync(skipScan: false, force: true);
+                    FlexVaultWindow.RefreshOpenHistoryWindows();
+                }
+                else
+                {
+                    await FlexVaultStateCache.RefreshBranchesAsync();
                 }
 
                 Close();

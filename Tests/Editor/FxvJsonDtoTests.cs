@@ -186,12 +186,15 @@ namespace FlexVault.VCS.Editor.Tests
             Assert.AreEqual("Fixed character movement jump bug", entries[0].Description);
             Assert.AreEqual("Jane Doe", entries[0].AuthorDisplayName);
             Assert.AreEqual("main.12", entries[0].RevisionDisplay);
+            Assert.AreEqual("main.12", entries[0].RevisionSpec);
 
             // Unparented draft entry (Revision is null)
             Assert.AreEqual("main.unpublished.1", entries[1].RevisionDisplay);
+            Assert.AreEqual("main.-.1", entries[1].RevisionSpec);
 
             // Parented draft entry (Revision = 3, DraftRevision = 2)
             Assert.AreEqual("feature.3.2", entries[2].RevisionDisplay);
+            Assert.AreEqual("feature.3.2", entries[2].RevisionSpec);
         }
 
         [Test]

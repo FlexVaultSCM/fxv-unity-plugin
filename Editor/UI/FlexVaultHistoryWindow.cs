@@ -88,6 +88,13 @@ namespace FlexVault.VCS.Editor.UI
             Repaint();
         }
 
+        public void RefreshHistory()
+        {
+            m_expandedRevisions.Clear();
+            m_lastHistoryFingerprint = string.Empty;
+            LoadHistory();
+        }
+
         private async void LoadHistory()
         {
             if (!FlexVaultSettings.IsInFlexVaultRepository())
@@ -101,6 +108,7 @@ namespace FlexVault.VCS.Editor.UI
                 FlexVaultStateCache.RefreshAsync();
             }
 
+            string requestFingerprint = GetCurrentHistoryFingerprint();
             m_isLoading = true;
             m_statusMessage = "Loading revision history...";
             Repaint();
@@ -124,6 +132,7 @@ namespace FlexVault.VCS.Editor.UI
                         var fetchTasks = allEntries.Select(async entry =>
                         {
                             string rev = entry.RevisionDisplay;
+                            string revSpec = entry.RevisionSpec;
                             ChangeInfoPayload payload = null;
                             if (m_changeInfoCache.TryGetValue(rev, out var cached))
                             {
@@ -131,7 +140,7 @@ namespace FlexVault.VCS.Editor.UI
                             }
                             else
                             {
-                                var changeResult = await FxvRunner.GetChangeInfoAsync(rev);
+                                var changeResult = await FxvRunner.GetChangeInfoAsync(revSpec);
                                 if (changeResult.Success && changeResult.Data != null)
                                 {
                                     payload = changeResult.Data;
@@ -185,7 +194,17 @@ namespace FlexVault.VCS.Editor.UI
             finally
             {
                 m_isLoading = false;
-                Repaint();
+                string currentFingerprint = GetCurrentHistoryFingerprint();
+                if (!string.IsNullOrEmpty(currentFingerprint) &&
+                    !string.Equals(currentFingerprint, m_lastHistoryFingerprint, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(currentFingerprint, requestFingerprint, StringComparison.OrdinalIgnoreCase))
+                {
+                    LoadHistory();
+                }
+                else
+                {
+                    Repaint();
+                }
             }
         }
 
@@ -305,6 +324,7 @@ namespace FlexVault.VCS.Editor.UI
                 EditorGUILayout.BeginHorizontal();
                 {
                     string rev = entry.RevisionDisplay;
+                    string revSpec = entry.RevisionSpec;
                     bool isExpanded = m_expandedRevisions.Contains(rev);
                     string toggleSymbol = isExpanded ? "\u25BC" : "\u25B6";
                     if (GUILayout.Button(toggleSymbol, EditorStyles.miniButton, GUILayout.Width(HistoryColToggleWidth)))
@@ -316,7 +336,7 @@ namespace FlexVault.VCS.Editor.UI
                         else
                         {
                             m_expandedRevisions.Add(rev);
-                            EnsureChangeInfoLoaded(rev);
+                            EnsureChangeInfoLoaded(rev, revSpec);
                         }
                     }
 
@@ -347,7 +367,7 @@ namespace FlexVault.VCS.Editor.UI
                     {
                         if (!isCurrent && GUILayout.Button("Diff vs Current", EditorStyles.miniButton, GUILayout.Width(95)))
                         {
-                            DiffWithWorkingCopy(m_filterPath, entry.RevisionDisplay);
+                            DiffWithWorkingCopy(m_filterPath, revSpec);
                         }
 
                         // In history, m_entries is in reverse chronological order (newest first).
@@ -357,7 +377,7 @@ namespace FlexVault.VCS.Editor.UI
                             var prevEntry = m_entries[index + 1];
                             if (GUILayout.Button("Diff vs Prev", EditorStyles.miniButton, GUILayout.Width(85)))
                             {
-                                DiffTwoRevisions(m_filterPath, prevEntry.RevisionDisplay, entry.RevisionDisplay);
+                                DiffTwoRevisions(m_filterPath, prevEntry.RevisionSpec, revSpec);
                             }
                         }
                     }
@@ -366,7 +386,7 @@ namespace FlexVault.VCS.Editor.UI
                         GUI.enabled = !isCurrent;
                         if (GUILayout.Button(isCurrent ? "Current" : "Go To", EditorStyles.miniButton, GUILayout.Width(HistoryColActionWidth)))
                         {
-                            FlexVaultWindow.ExecuteGotoRevision(entry.RevisionDisplay, Repaint);
+                            FlexVaultWindow.ExecuteGotoRevision(revSpec, Repaint);
                         }
                         GUI.enabled = true;
                     }
@@ -388,13 +408,14 @@ namespace FlexVault.VCS.Editor.UI
             if (evt != null && evt.type == EventType.ContextClick && rowRect.Contains(evt.mousePosition))
             {
                 var contextMenu = new GenericMenu();
-                string targetRev = entry.RevisionDisplay;
-                contextMenu.AddItem(new GUIContent($"Create Branch From {targetRev}..."), false, () => FlexVaultCreateBranchDialog.ShowWindow(targetRev));
+                string targetRevDisplay = entry.RevisionDisplay;
+                string targetRevSpec = entry.RevisionSpec;
+                contextMenu.AddItem(new GUIContent($"Create Branch From {targetRevDisplay}..."), false, () => FlexVaultCreateBranchDialog.ShowWindow(targetRevSpec));
                 if (!isCurrent)
                 {
-                    contextMenu.AddItem(new GUIContent($"Go To Revision {targetRev}"), false, () => FlexVaultWindow.ExecuteGotoRevision(targetRev, Repaint));
+                    contextMenu.AddItem(new GUIContent($"Go To Revision {targetRevDisplay}"), false, () => FlexVaultWindow.ExecuteGotoRevision(targetRevSpec, Repaint));
                 }
-                contextMenu.AddItem(new GUIContent("Copy Revision Spec"), false, () => EditorGUIUtility.systemCopyBuffer = targetRev);
+                contextMenu.AddItem(new GUIContent("Copy Revision Spec"), false, () => EditorGUIUtility.systemCopyBuffer = targetRevSpec);
                 contextMenu.ShowAsContext();
                 evt.Use();
             }
@@ -403,29 +424,34 @@ namespace FlexVault.VCS.Editor.UI
             GUILayout.Space(2f);
         }
 
-        private async void EnsureChangeInfoLoaded(string revision)
+        private async void EnsureChangeInfoLoaded(string cacheKeyRevision, string queryRevisionSpec = null)
         {
-            if (m_changeInfoCache.ContainsKey(revision) || m_loadingChangeInfo.Contains(revision))
+            if (m_changeInfoCache.ContainsKey(cacheKeyRevision) || m_loadingChangeInfo.Contains(cacheKeyRevision))
             {
                 return;
             }
 
-            m_loadingChangeInfo.Add(revision);
+            string cliRev = !string.IsNullOrEmpty(queryRevisionSpec) ? queryRevisionSpec : cacheKeyRevision;
+            m_loadingChangeInfo.Add(cacheKeyRevision);
             try
             {
-                var result = await FxvRunner.GetChangeInfoAsync(revision);
+                var result = await FxvRunner.GetChangeInfoAsync(cliRev);
                 if (result.Success && result.Data != null)
                 {
-                    m_changeInfoCache[revision] = result.Data;
+                    m_changeInfoCache[cacheKeyRevision] = result.Data;
+                }
+                else if (!result.Success)
+                {
+                    Debug.LogWarning($"[FlexVault] Failed to load change details for {cliRev}: {result.ErrorMessage}");
                 }
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"[FlexVault] Failed to load change details for {revision}: {ex.Message}");
+                Debug.LogWarning($"[FlexVault] Failed to load change details for {cliRev}: {ex.Message}");
             }
             finally
             {
-                m_loadingChangeInfo.Remove(revision);
+                m_loadingChangeInfo.Remove(cacheKeyRevision);
                 Repaint();
             }
         }
@@ -433,6 +459,7 @@ namespace FlexVault.VCS.Editor.UI
         private void DrawExpandedChanges(CommitRefJson entry, int commitIndex, bool isCurrent)
         {
             string rev = entry.RevisionDisplay;
+            string revSpec = entry.RevisionSpec;
             if (m_loadingChangeInfo.Contains(rev))
             {
                 EditorGUILayout.LabelField("Loading changed files...", EditorStyles.miniLabel);
@@ -473,7 +500,7 @@ namespace FlexVault.VCS.Editor.UI
                         {
                             if (!isCurrent && GUILayout.Button("Diff vs Current", EditorStyles.miniButton, GUILayout.Width(90)))
                             {
-                                DiffWithWorkingCopy(file.Path, rev);
+                                DiffWithWorkingCopy(file.Path, revSpec);
                             }
 
                             if (commitIndex + 1 < m_entries.Count)
@@ -481,7 +508,7 @@ namespace FlexVault.VCS.Editor.UI
                                 var prev = m_entries[commitIndex + 1];
                                 if (GUILayout.Button("Diff vs Prev", EditorStyles.miniButton, GUILayout.Width(80)))
                                 {
-                                    DiffTwoRevisions(file.Path, prev.RevisionDisplay, rev);
+                                    DiffTwoRevisions(file.Path, prev.RevisionSpec, revSpec);
                                 }
                             }
                         }

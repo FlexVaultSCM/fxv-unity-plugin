@@ -293,13 +293,33 @@ namespace FlexVault.VCS.Editor.Core
             get
             {
                 if (Commit == null) return "unknown";
-                if (Commit.Type == "draft" && Commit.DraftRevision.HasValue)
+                if (Commit.Type == "draft" && Commit.DraftRevision.HasValue && Commit.DraftRevision.Value > 0)
                 {
                     return Commit.Revision.HasValue
                         ? $"{Commit.Branch}.{Commit.Revision.Value}.{Commit.DraftRevision.Value}"
                         : $"{Commit.Branch}.unpublished.{Commit.DraftRevision.Value}";
                 }
                 return Commit.Revision.HasValue ? $"{Commit.Branch}.{Commit.Revision.Value}" : Commit.Branch;
+            }
+        }
+
+        // Same shape as RevisionDisplay, but formatted for feeding back into the fxv CLI
+        // (changeinfo, cat -r, goto, branch new --from, etc.). The CLI's revision-spec parser
+        // expects a literal "-" placeholder when no published revision exists yet (e.g. "main.-.1"),
+        // whereas RevisionDisplay uses "unpublished" for human readability.
+        [JsonIgnore]
+        public string RevisionSpec
+        {
+            get
+            {
+                if (Commit == null) return string.Empty;
+                if (Commit.Type == "draft" && Commit.DraftRevision.HasValue && Commit.DraftRevision.Value > 0)
+                {
+                    return Commit.Revision.HasValue
+                        ? $"{Commit.Branch}.{Commit.Revision.Value}.{Commit.DraftRevision.Value}"
+                        : $"{Commit.Branch}.-.{Commit.DraftRevision.Value}";
+                }
+                return Commit.Revision.HasValue ? $"{Commit.Branch}.{Commit.Revision.Value}" : (Commit.Branch ?? string.Empty);
             }
         }
     }
