@@ -293,7 +293,7 @@ namespace FlexVault.VCS.Editor.Core
             get
             {
                 if (Commit == null) return "unknown";
-                if (Commit.Type == "draft" && Commit.DraftRevision.HasValue)
+                if (Commit.Type == "draft" && Commit.DraftRevision.HasValue && Commit.DraftRevision.Value > 0)
                 {
                     return Commit.Revision.HasValue
                         ? $"{Commit.Branch}.{Commit.Revision.Value}.{Commit.DraftRevision.Value}"
@@ -301,6 +301,75 @@ namespace FlexVault.VCS.Editor.Core
                 }
                 return Commit.Revision.HasValue ? $"{Commit.Branch}.{Commit.Revision.Value}" : Commit.Branch;
             }
+        }
+
+        // Same shape as RevisionDisplay, but formatted for feeding back into the fxv CLI
+        // (changeinfo, cat -r, goto, branch new --from, etc.). The CLI's revision-spec parser
+        // expects a literal "-" placeholder when no published revision exists yet (e.g. "main.-.1"),
+        // whereas RevisionDisplay uses "unpublished" for human readability.
+        [JsonIgnore]
+        public string RevisionSpec
+        {
+            get
+            {
+                if (Commit == null) return string.Empty;
+                if (Commit.Type == "draft" && Commit.DraftRevision.HasValue && Commit.DraftRevision.Value > 0)
+                {
+                    return Commit.Revision.HasValue
+                        ? $"{Commit.Branch}.{Commit.Revision.Value}.{Commit.DraftRevision.Value}"
+                        : $"{Commit.Branch}.-.{Commit.DraftRevision.Value}";
+                }
+                return Commit.Revision.HasValue ? $"{Commit.Branch}.{Commit.Revision.Value}" : (Commit.Branch ?? string.Empty);
+            }
+        }
+
+        // Resolves the predecessor revision in a newest-first history list, matching the parent
+        // commit that 'fxv changeinfo' diffs against:
+        // - A published commit (e.g. main.3) continues the previous published commit (main.2),
+        //   NOT the draft below it in the combined history list (main.2.6), whose tree is often
+        //   identical to main.3 because main.3 was published from main.2.6.
+        // - A draft commit at draft_revision == 1 (e.g. main.2.1) continues its published base
+        //   revision (main.2).
+        // - A subsequent draft commit (e.g. main.2.6) continues the preceding draft or published
+        //   entry immediately following it in the history list.
+        public static CommitRefJson GetPredecessorEntry(IReadOnlyList<CommitRefJson> entries, int currentIndex)
+        {
+            if (entries == null || currentIndex < 0 || currentIndex >= entries.Count)
+            {
+                return null;
+            }
+
+            var current = entries[currentIndex];
+            bool isPublished = string.Equals(current?.Commit?.Type, "published", StringComparison.OrdinalIgnoreCase);
+
+            if (isPublished)
+            {
+                for (int i = currentIndex + 1; i < entries.Count; i++)
+                {
+                    var candidate = entries[i];
+                    if (string.Equals(candidate?.Commit?.Type, "published", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return candidate;
+                    }
+                }
+                return null;
+            }
+
+            if (current?.Commit?.DraftRevision == 1 && current.Commit.Revision.HasValue)
+            {
+                ulong baseRev = current.Commit.Revision.Value;
+                for (int i = currentIndex + 1; i < entries.Count; i++)
+                {
+                    var candidate = entries[i];
+                    if (string.Equals(candidate?.Commit?.Type, "published", StringComparison.OrdinalIgnoreCase) &&
+                        candidate.Commit.Revision == baseRev)
+                    {
+                        return candidate;
+                    }
+                }
+            }
+
+            return currentIndex + 1 < entries.Count ? entries[currentIndex + 1] : null;
         }
     }
 

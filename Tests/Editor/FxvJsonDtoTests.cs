@@ -186,12 +186,44 @@ namespace FlexVault.VCS.Editor.Tests
             Assert.AreEqual("Fixed character movement jump bug", entries[0].Description);
             Assert.AreEqual("Jane Doe", entries[0].AuthorDisplayName);
             Assert.AreEqual("main.12", entries[0].RevisionDisplay);
+            Assert.AreEqual("main.12", entries[0].RevisionSpec);
 
             // Unparented draft entry (Revision is null)
             Assert.AreEqual("main.unpublished.1", entries[1].RevisionDisplay);
+            Assert.AreEqual("main.-.1", entries[1].RevisionSpec);
 
             // Parented draft entry (Revision = 3, DraftRevision = 2)
             Assert.AreEqual("feature.3.2", entries[2].RevisionDisplay);
+            Assert.AreEqual("feature.3.2", entries[2].RevisionSpec);
+        }
+
+        [Test]
+        public void CommitRefJson_GetPredecessorEntry_ResolvesPublishedAndDraftParents()
+        {
+            var entries = new List<CommitRefJson>
+            {
+                new CommitRefJson { Commit = new CommitInfoDetailJson { Branch = "main", Revision = 3, Type = "draft", DraftRevision = 1 } },
+                new CommitRefJson { Commit = new CommitInfoDetailJson { Branch = "main", Revision = 3, Type = "published" } },
+                new CommitRefJson { Commit = new CommitInfoDetailJson { Branch = "main", Revision = 2, Type = "draft", DraftRevision = 6 } },
+                new CommitRefJson { Commit = new CommitInfoDetailJson { Branch = "main", Revision = 2, Type = "draft", DraftRevision = 5 } },
+                new CommitRefJson { Commit = new CommitInfoDetailJson { Branch = "main", Revision = 2, Type = "published" } },
+                new CommitRefJson { Commit = new CommitInfoDetailJson { Branch = "main", Revision = 1, Type = "published" } },
+            };
+
+            // Draft main.3.1 (index 0) continues published main.3 (index 1)
+            Assert.AreEqual("main.3", CommitRefJson.GetPredecessorEntry(entries, 0)?.RevisionSpec);
+
+            // Published main.3 (index 1) continues published main.2 (index 4), skipping drafts main.2.6 and main.2.5
+            Assert.AreEqual("main.2", CommitRefJson.GetPredecessorEntry(entries, 1)?.RevisionSpec);
+
+            // Draft main.2.6 (index 2) continues draft main.2.5 (index 3)
+            Assert.AreEqual("main.2.5", CommitRefJson.GetPredecessorEntry(entries, 2)?.RevisionSpec);
+
+            // Published main.2 (index 4) continues published main.1 (index 5)
+            Assert.AreEqual("main.1", CommitRefJson.GetPredecessorEntry(entries, 4)?.RevisionSpec);
+
+            // Oldest published main.1 (index 5) has no predecessor in the list
+            Assert.IsNull(CommitRefJson.GetPredecessorEntry(entries, 5));
         }
 
         [Test]

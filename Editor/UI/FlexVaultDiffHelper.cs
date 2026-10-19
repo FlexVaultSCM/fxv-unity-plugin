@@ -46,11 +46,11 @@ namespace FlexVault.VCS.Editor.UI
             {
                 if (status.HeadCommit?.LocalSnapshot != null)
                 {
-                    return status.HeadCommit.LocalSnapshot.RevisionDisplay;
+                    return status.HeadCommit.LocalSnapshot.RevisionSpec;
                 }
                 if (status.HeadCommit?.PublishedHead != null)
                 {
-                    return status.HeadCommit.PublishedHead.RevisionDisplay;
+                    return status.HeadCommit.PublishedHead.RevisionSpec;
                 }
                 if (status.SyncStatus?.SyncedRevision != null)
                 {
@@ -69,13 +69,13 @@ namespace FlexVault.VCS.Editor.UI
             }
             if (status.HeadCommit?.PublishedHead != null)
             {
-                return status.HeadCommit.PublishedHead.RevisionDisplay;
+                return status.HeadCommit.PublishedHead.RevisionSpec;
             }
 
             // 3. Fall back to local snapshot if no published revision exists (unparented draft or new branch)
             if (status.HeadCommit?.LocalSnapshot != null)
             {
-                return status.HeadCommit.LocalSnapshot.RevisionDisplay;
+                return status.HeadCommit.LocalSnapshot.RevisionSpec;
             }
 
             return null;

@@ -28,6 +28,12 @@ namespace FlexVault.VCS.Editor.UI
             FlexVaultCreateBranchDialog.ShowWindow();
         }
 
+        [MenuItem(MenuRoot + "Open Workspace in Terminal", false, 103)]
+        public static void OpenWorkspaceInTerminal()
+        {
+            FlexVaultSettings.OpenWorkspaceInTerminal();
+        }
+
         [MenuItem(MenuRoot + "Revert Selected", false, 120)]
         public static async void RevertSelected()
         {

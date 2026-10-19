@@ -98,5 +98,35 @@ namespace FlexVault.VCS.Editor.Tests
             Assert.IsNotNull(attr, "FlexVaultVersionControlObject must have [VersionControl] attribute");
             Assert.AreEqual("FlexVault", attr.name, "Attribute name must be 'FlexVault' to appear as Mode dropdown option");
         }
+
+        [Test]
+        public void BuildTerminalStartInfoCandidates_Windows_ReturnsExpectedCandidates()
+        {
+            var candidates = FlexVaultSettings.BuildTerminalStartInfoCandidates("C:/Projects/MyGame", UnityEngine.RuntimePlatform.WindowsEditor);
+            Assert.GreaterOrEqual(candidates.Count, 3);
+            Assert.AreEqual("wt.exe", candidates[0].FileName);
+            Assert.AreEqual("-d \"C:\\Projects\\MyGame\"", candidates[0].Arguments);
+            Assert.AreEqual("powershell.exe", candidates[1].FileName);
+            Assert.AreEqual("cmd.exe", candidates[2].FileName);
+        }
+
+        [Test]
+        public void BuildTerminalStartInfoCandidates_MacOS_UsesOpenTerminal()
+        {
+            var candidates = FlexVaultSettings.BuildTerminalStartInfoCandidates("/Users/dev/MyGame", UnityEngine.RuntimePlatform.OSXEditor);
+            Assert.AreEqual(1, candidates.Count);
+            Assert.AreEqual("open", candidates[0].FileName);
+            Assert.AreEqual("-a Terminal \"/Users/dev/MyGame\"", candidates[0].Arguments);
+        }
+
+        [Test]
+        public void BuildTerminalStartInfoCandidates_Linux_ReturnsTerminalEmulators()
+        {
+            var candidates = FlexVaultSettings.BuildTerminalStartInfoCandidates("/home/dev/MyGame", UnityEngine.RuntimePlatform.LinuxEditor);
+            Assert.GreaterOrEqual(candidates.Count, 3);
+            Assert.AreEqual("x-terminal-emulator", candidates[0].FileName);
+            Assert.AreEqual("/home/dev/MyGame", candidates[0].WorkingDirectory);
+        }
     }
 }
+

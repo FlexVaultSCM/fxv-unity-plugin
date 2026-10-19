@@ -54,6 +54,7 @@ namespace FlexVault.VCS.Editor.UI
         private readonly HashSet<string> m_loadingChangeInfo = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private bool m_isLoadingHistory;
         private bool m_isOperating;
+        private string m_lastHistoryFingerprint = string.Empty;
 
         [MenuItem("Window/Version Control/FlexVault", false, 10)]
         public static void ShowWindow()
@@ -89,9 +90,53 @@ namespace FlexVault.VCS.Editor.UI
             }
         }
 
+        private string GetCurrentHistoryFingerprint()
+        {
+            var status = FlexVaultStateCache.LatestStatus;
+            if (status == null) return string.Empty;
+            string branch = status.CurrentBranch ?? string.Empty;
+            string head = status.HeadCommit?.LocalSnapshot?.RevisionDisplay
+                ?? (status.SyncStatus?.SyncedRevision != null ? $"{branch}.{status.SyncStatus.SyncedRevision.Value}" : string.Empty);
+            return $"{branch}|{head}";
+        }
+
         private void OnStateChanged()
         {
+            if (m_currentTab == Tab.History && !m_isLoadingHistory)
+            {
+                string fp = GetCurrentHistoryFingerprint();
+                if (!string.IsNullOrEmpty(fp) && !string.Equals(fp, m_lastHistoryFingerprint, StringComparison.OrdinalIgnoreCase))
+                {
+                    LoadHistoryEntries();
+                    return;
+                }
+            }
+
             Repaint();
+        }
+
+        public static void RefreshOpenHistoryWindows()
+        {
+            foreach (var window in Resources.FindObjectsOfTypeAll<FlexVaultWindow>())
+            {
+                if (window == null) continue;
+                window.m_expandedRevisions.Clear();
+                window.m_lastHistoryFingerprint = string.Empty;
+                if (window.m_currentTab == Tab.History)
+                {
+                    window.LoadHistoryEntries();
+                }
+                else
+                {
+                    window.Repaint();
+                }
+            }
+
+            foreach (var histWindow in Resources.FindObjectsOfTypeAll<FlexVaultHistoryWindow>())
+            {
+                if (histWindow == null) continue;
+                histWindow.RefreshHistory();
+            }
         }
 
         private void OnGUI()
@@ -129,6 +174,13 @@ namespace FlexVault.VCS.Editor.UI
         {
             EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
             {
+                if (GUILayout.Button("Settings...", EditorStyles.toolbarButton, GUILayout.Width(65)))
+                {
+                    SettingsService.OpenProjectSettings("Project/Version Control");
+                }
+
+                GUILayout.Space(6f);
+
                 string versionDisplay = GetVersionDisplay();
                 if (!string.IsNullOrEmpty(versionDisplay))
                 {
@@ -182,6 +234,11 @@ namespace FlexVault.VCS.Editor.UI
             if (GUILayout.Button("Open FlexVault Settings", GUILayout.Height(30)))
             {
                 SettingsService.OpenProjectSettings("Project/Version Control");
+            }
+            GUILayout.Space(5f);
+            if (GUILayout.Button("Open Workspace in Terminal", GUILayout.Height(25)))
+            {
+                FlexVaultSettings.OpenWorkspaceInTerminal();
             }
             GUILayout.Space(5f);
             if (GUILayout.Button("Retry Repository Detection", GUILayout.Height(25)))
@@ -291,6 +348,12 @@ namespace FlexVault.VCS.Editor.UI
                         PromptLogin();
                     }
                     GUI.enabled = true;
+                }
+
+                GUI.enabled = true;
+                if (GUILayout.Button(new GUIContent("Terminal", "Open the FlexVault workspace in a terminal"), EditorStyles.toolbarButton, GUILayout.Width(65)))
+                {
+                    FlexVaultSettings.OpenWorkspaceInTerminal();
                 }
 
                 GUI.enabled = !m_isOperating;
@@ -849,6 +912,7 @@ namespace FlexVault.VCS.Editor.UI
             {
                 FlexVaultStateCache.RefreshAsync();
             }
+            string fingerprintAtStart = GetCurrentHistoryFingerprint();
             m_isLoadingHistory = true;
             Repaint();
 
@@ -858,6 +922,7 @@ namespace FlexVault.VCS.Editor.UI
                 if (result.Success && result.Data != null)
                 {
                     m_historyEntries = result.Data.Entries ?? new List<CommitRefJson>();
+                    m_lastHistoryFingerprint = GetCurrentHistoryFingerprint();
                 }
             }
             catch (Exception ex)
@@ -867,7 +932,17 @@ namespace FlexVault.VCS.Editor.UI
             finally
             {
                 m_isLoadingHistory = false;
-                Repaint();
+                string currentFingerprint = GetCurrentHistoryFingerprint();
+                if (m_currentTab == Tab.History && !string.IsNullOrEmpty(currentFingerprint) &&
+                    !string.Equals(currentFingerprint, m_lastHistoryFingerprint, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(currentFingerprint, fingerprintAtStart, StringComparison.OrdinalIgnoreCase))
+                {
+                    LoadHistoryEntries();
+                }
+                else
+                {
+                    Repaint();
+                }
             }
         }
 
@@ -978,7 +1053,7 @@ namespace FlexVault.VCS.Editor.UI
                                 else
                                 {
                                     m_expandedRevisions.Add(entry.RevisionDisplay);
-                                    EnsureChangeInfoLoaded(entry.RevisionDisplay);
+                                    EnsureChangeInfoLoaded(entry.RevisionDisplay, entry.RevisionSpec);
                                 }
                             }
 
@@ -1004,7 +1079,7 @@ namespace FlexVault.VCS.Editor.UI
                             GUI.enabled = !isCurrent && !m_isOperating;
                             if (GUILayout.Button(isCurrent ? "Current" : "Go To", EditorStyles.miniButton, GUILayout.Width(HistoryColActionWidth)))
                             {
-                                ExecuteGoto(entry.RevisionDisplay);
+                                ExecuteGoto(entry.RevisionSpec);
                             }
                             GUI.enabled = true;
                         }
@@ -1025,13 +1100,14 @@ namespace FlexVault.VCS.Editor.UI
                     if (evt != null && evt.type == EventType.ContextClick && rowRect.Contains(evt.mousePosition))
                     {
                         var contextMenu = new GenericMenu();
-                        string targetRev = entry.RevisionDisplay;
-                        contextMenu.AddItem(new GUIContent($"Create Branch From {targetRev}..."), false, () => FlexVaultCreateBranchDialog.ShowWindow(targetRev));
+                        string targetRevDisplay = entry.RevisionDisplay;
+                        string targetRevSpec = entry.RevisionSpec;
+                        contextMenu.AddItem(new GUIContent($"Create Branch From {targetRevDisplay}..."), false, () => FlexVaultCreateBranchDialog.ShowWindow(targetRevSpec));
                         if (!isCurrent)
                         {
-                            contextMenu.AddItem(new GUIContent($"Go To Revision {targetRev}"), false, () => ExecuteGoto(targetRev));
+                            contextMenu.AddItem(new GUIContent($"Go To Revision {targetRevDisplay}"), false, () => ExecuteGoto(targetRevSpec));
                         }
-                        contextMenu.AddItem(new GUIContent("Copy Revision Spec"), false, () => EditorGUIUtility.systemCopyBuffer = targetRev);
+                        contextMenu.AddItem(new GUIContent("Copy Revision Spec"), false, () => EditorGUIUtility.systemCopyBuffer = targetRevSpec);
                         contextMenu.ShowAsContext();
                         evt.Use();
                     }
@@ -1043,29 +1119,34 @@ namespace FlexVault.VCS.Editor.UI
             EditorGUILayout.EndScrollView();
         }
 
-        private async void EnsureChangeInfoLoaded(string revision)
+        private async void EnsureChangeInfoLoaded(string cacheKeyRevision, string queryRevisionSpec = null)
         {
-            if (m_changeInfoCache.ContainsKey(revision) || m_loadingChangeInfo.Contains(revision))
+            if (m_changeInfoCache.ContainsKey(cacheKeyRevision) || m_loadingChangeInfo.Contains(cacheKeyRevision))
             {
                 return;
             }
 
-            m_loadingChangeInfo.Add(revision);
+            string cliRev = !string.IsNullOrEmpty(queryRevisionSpec) ? queryRevisionSpec : cacheKeyRevision;
+            m_loadingChangeInfo.Add(cacheKeyRevision);
             try
             {
-                var result = await FxvRunner.GetChangeInfoAsync(revision);
+                var result = await FxvRunner.GetChangeInfoAsync(cliRev);
                 if (result.Success && result.Data != null)
                 {
-                    m_changeInfoCache[revision] = result.Data;
+                    m_changeInfoCache[cacheKeyRevision] = result.Data;
+                }
+                else if (!result.Success)
+                {
+                    Debug.LogWarning($"[FlexVault] Failed to load change details for {cliRev}: {result.ErrorMessage}");
                 }
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"[FlexVault] Failed to load change details for {revision}: {ex.Message}");
+                Debug.LogWarning($"[FlexVault] Failed to load change details for {cliRev}: {ex.Message}");
             }
             finally
             {
-                m_loadingChangeInfo.Remove(revision);
+                m_loadingChangeInfo.Remove(cacheKeyRevision);
                 Repaint();
             }
         }
@@ -1073,6 +1154,7 @@ namespace FlexVault.VCS.Editor.UI
         private void DrawExpandedChanges(CommitRefJson entry, int commitIndex, bool isCurrent)
         {
             string rev = entry.RevisionDisplay;
+            string revSpec = entry.RevisionSpec;
             if (m_loadingChangeInfo.Contains(rev))
             {
                 EditorGUILayout.LabelField("Loading changed files...", EditorStyles.miniLabel);
@@ -1113,15 +1195,15 @@ namespace FlexVault.VCS.Editor.UI
                         {
                             if (!isCurrent && GUILayout.Button("Diff vs Current", EditorStyles.miniButton, GUILayout.Width(90)))
                             {
-                                _ = FlexVaultDiffHelper.DiffWithWorkingCopyAsync(file.Path, rev);
+                                _ = FlexVaultDiffHelper.DiffWithWorkingCopyAsync(file.Path, revSpec);
                             }
 
-                            if (commitIndex + 1 < m_historyEntries.Count)
+                            var prev = CommitRefJson.GetPredecessorEntry(m_historyEntries, commitIndex);
+                            if (prev != null && !string.Equals(file.Action, "added", StringComparison.OrdinalIgnoreCase))
                             {
-                                var prev = m_historyEntries[commitIndex + 1];
                                 if (GUILayout.Button("Diff vs Prev", EditorStyles.miniButton, GUILayout.Width(80)))
                                 {
-                                    _ = FlexVaultDiffHelper.DiffTwoRevisionsAsync(file.Path, prev.RevisionDisplay, rev);
+                                    _ = FlexVaultDiffHelper.DiffTwoRevisionsAsync(file.Path, prev.RevisionSpec, revSpec);
                                 }
                             }
                         }
@@ -1377,7 +1459,6 @@ namespace FlexVault.VCS.Editor.UI
                         ShowNotification(new GUIContent(msg));
                         Debug.Log($"[FlexVault] {msg}");
                     }
-                    _ = FlexVaultStateCache.RefreshBranchesAsync();
                 }
             }
             catch (Exception ex)
@@ -1391,7 +1472,8 @@ namespace FlexVault.VCS.Editor.UI
                 AssetDatabase.Refresh();
                 EditorApplication.UnlockReloadAssemblies();
                 m_isOperating = false;
-                FlexVaultStateCache.RefreshAsync();
+                FlexVaultStateCache.RefreshAsync(skipScan: false, force: true);
+                RefreshOpenHistoryWindows();
                 Repaint();
             }
         }
