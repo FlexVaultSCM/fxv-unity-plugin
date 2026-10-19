@@ -349,7 +349,16 @@ namespace FlexVault.VCS.Editor.Core
             if (state == null) return;
 
             GUILayout.Space(10f);
-            EditorGUILayout.LabelField("FlexVault Version Control Settings", EditorStyles.boldLabel);
+            EditorGUILayout.BeginHorizontal();
+            {
+                EditorGUILayout.LabelField("FlexVault Version Control Settings", EditorStyles.boldLabel);
+                GUILayout.FlexibleSpace();
+                if (GUILayout.Button("Documentation", EditorStyles.miniButton, GUILayout.Width(100)))
+                {
+                    Application.OpenURL(FlexVaultVersionGuard.DocumentationUrl);
+                }
+            }
+            EditorGUILayout.EndHorizontal();
             GUILayout.Space(5f);
 
             string currentCustom = FlexVaultSettings.CustomBinaryPath;

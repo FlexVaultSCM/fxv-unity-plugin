@@ -147,6 +147,7 @@ namespace FlexVault.VCS.Editor.Core
         private static FxvCliVersion? s_cachedVersion;
 
         public const string RemoteVersionJsonUrl = "https://github.com/FlexVaultSCM/fxv-unity-plugin/releases/latest/download/version.json";
+        public const string DocumentationUrl = "https://docs.fxv.dev/how-to/unity-plugin/";
         public static string AvailableUpdateVersion { get; private set; }
         public static string AvailableUpdateCliRange { get; private set; }
         public static event Action OnAvailableUpdateChanged;

@@ -184,6 +184,11 @@ namespace FlexVault.VCS.Editor.UI
                     SettingsService.OpenProjectSettings("Project/Version Control");
                 }
 
+                if (GUILayout.Button("Docs", EditorStyles.toolbarButton, GUILayout.Width(45)))
+                {
+                    Application.OpenURL(FlexVaultVersionGuard.DocumentationUrl);
+                }
+
                 GUILayout.Space(6f);
 
                 string versionDisplay = GetVersionDisplay();
@@ -241,6 +246,11 @@ namespace FlexVault.VCS.Editor.UI
                 SettingsService.OpenProjectSettings("Project/Version Control");
             }
             GUILayout.Space(5f);
+            if (GUILayout.Button("Documentation", GUILayout.Height(25)))
+            {
+                Application.OpenURL(FlexVaultVersionGuard.DocumentationUrl);
+            }
+            GUILayout.Space(5f);
             if (GUILayout.Button("Open Workspace in Terminal", GUILayout.Height(25)))
             {
                 FlexVaultSettings.OpenWorkspaceInTerminal();
@@ -266,6 +276,11 @@ namespace FlexVault.VCS.Editor.UI
                     SettingsService.OpenProjectSettings("Project/Version Control");
                 }
 
+                if (GUILayout.Button("Docs", EditorStyles.miniButton, GUILayout.Width(50)))
+                {
+                    Application.OpenURL(FlexVaultVersionGuard.DocumentationUrl);
+                }
+
                 if (GUILayout.Button("Retry Version Check", EditorStyles.miniButton, GUILayout.Width(150)))
                 {
                     FlexVaultVersionGuard.ResetCachedVersion();
@@ -287,14 +302,14 @@ namespace FlexVault.VCS.Editor.UI
 
             EditorGUILayout.HelpBox(
                 $"A new FlexVault Unity plugin update is available: v{FlexVaultVersionGuard.AvailableUpdateVersion}{rangeInfo}.",
-                MessageType.Info
+                MessageType.Warning
             );
 
             EditorGUILayout.BeginHorizontal();
             {
-                if (GUILayout.Button("View Release on GitHub", EditorStyles.miniButton, GUILayout.Width(160)))
+                if (GUILayout.Button("View Documentation", EditorStyles.miniButton, GUILayout.Width(150)))
                 {
-                    Application.OpenURL("https://github.com/FlexVaultSCM/fxv-unity-plugin/releases/latest");
+                    Application.OpenURL(FlexVaultVersionGuard.DocumentationUrl);
                 }
             }
             EditorGUILayout.EndHorizontal();
