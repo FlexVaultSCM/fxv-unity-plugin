@@ -1198,9 +1198,9 @@ namespace FlexVault.VCS.Editor.UI
                                 _ = FlexVaultDiffHelper.DiffWithWorkingCopyAsync(file.Path, revSpec);
                             }
 
-                            if (commitIndex + 1 < m_historyEntries.Count)
+                            var prev = CommitRefJson.GetPredecessorEntry(m_historyEntries, commitIndex);
+                            if (prev != null && !string.Equals(file.Action, "added", StringComparison.OrdinalIgnoreCase))
                             {
-                                var prev = m_historyEntries[commitIndex + 1];
                                 if (GUILayout.Button("Diff vs Prev", EditorStyles.miniButton, GUILayout.Width(80)))
                                 {
                                     _ = FlexVaultDiffHelper.DiffTwoRevisionsAsync(file.Path, prev.RevisionSpec, revSpec);

@@ -370,11 +370,9 @@ namespace FlexVault.VCS.Editor.UI
                             DiffWithWorkingCopy(m_filterPath, revSpec);
                         }
 
-                        // In history, m_entries is in reverse chronological order (newest first).
-                        // The revision immediately preceding this one is at index + 1.
-                        if (index + 1 < m_entries.Count)
+                        var prevEntry = CommitRefJson.GetPredecessorEntry(m_entries, index);
+                        if (prevEntry != null)
                         {
-                            var prevEntry = m_entries[index + 1];
                             if (GUILayout.Button("Diff vs Prev", EditorStyles.miniButton, GUILayout.Width(85)))
                             {
                                 DiffTwoRevisions(m_filterPath, prevEntry.RevisionSpec, revSpec);
@@ -503,9 +501,9 @@ namespace FlexVault.VCS.Editor.UI
                                 DiffWithWorkingCopy(file.Path, revSpec);
                             }
 
-                            if (commitIndex + 1 < m_entries.Count)
+                            var prev = CommitRefJson.GetPredecessorEntry(m_entries, commitIndex);
+                            if (prev != null && !string.Equals(file.Action, "added", StringComparison.OrdinalIgnoreCase))
                             {
-                                var prev = m_entries[commitIndex + 1];
                                 if (GUILayout.Button("Diff vs Prev", EditorStyles.miniButton, GUILayout.Width(80)))
                                 {
                                     DiffTwoRevisions(file.Path, prev.RevisionSpec, revSpec);

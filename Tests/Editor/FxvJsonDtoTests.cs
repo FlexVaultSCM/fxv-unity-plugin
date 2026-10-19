@@ -198,6 +198,35 @@ namespace FlexVault.VCS.Editor.Tests
         }
 
         [Test]
+        public void CommitRefJson_GetPredecessorEntry_ResolvesPublishedAndDraftParents()
+        {
+            var entries = new List<CommitRefJson>
+            {
+                new CommitRefJson { Commit = new CommitInfoDetailJson { Branch = "main", Revision = 3, Type = "draft", DraftRevision = 1 } },
+                new CommitRefJson { Commit = new CommitInfoDetailJson { Branch = "main", Revision = 3, Type = "published" } },
+                new CommitRefJson { Commit = new CommitInfoDetailJson { Branch = "main", Revision = 2, Type = "draft", DraftRevision = 6 } },
+                new CommitRefJson { Commit = new CommitInfoDetailJson { Branch = "main", Revision = 2, Type = "draft", DraftRevision = 5 } },
+                new CommitRefJson { Commit = new CommitInfoDetailJson { Branch = "main", Revision = 2, Type = "published" } },
+                new CommitRefJson { Commit = new CommitInfoDetailJson { Branch = "main", Revision = 1, Type = "published" } },
+            };
+
+            // Draft main.3.1 (index 0) continues published main.3 (index 1)
+            Assert.AreEqual("main.3", CommitRefJson.GetPredecessorEntry(entries, 0)?.RevisionSpec);
+
+            // Published main.3 (index 1) continues published main.2 (index 4), skipping drafts main.2.6 and main.2.5
+            Assert.AreEqual("main.2", CommitRefJson.GetPredecessorEntry(entries, 1)?.RevisionSpec);
+
+            // Draft main.2.6 (index 2) continues draft main.2.5 (index 3)
+            Assert.AreEqual("main.2.5", CommitRefJson.GetPredecessorEntry(entries, 2)?.RevisionSpec);
+
+            // Published main.2 (index 4) continues published main.1 (index 5)
+            Assert.AreEqual("main.1", CommitRefJson.GetPredecessorEntry(entries, 4)?.RevisionSpec);
+
+            // Oldest published main.1 (index 5) has no predecessor in the list
+            Assert.IsNull(CommitRefJson.GetPredecessorEntry(entries, 5));
+        }
+
+        [Test]
         public void WorkspaceSyncPayload_Deserialization_ParsesConflictedAndUpdatedFiles()
         {
             string json = @"{
