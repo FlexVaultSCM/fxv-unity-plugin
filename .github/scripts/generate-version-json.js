@@ -35,6 +35,15 @@ if (!minVersionMatch || !maxVersionMatch) {
 const cliMin = `${minVersionMatch[1]}.${minVersionMatch[2]}.${minVersionMatch[3]}`;
 const cliMax = `${maxVersionMatch[1]}.${maxVersionMatch[2]}.${maxVersionMatch[3]}`;
 
+const minParts = [parseInt(minVersionMatch[1], 10), parseInt(minVersionMatch[2], 10), parseInt(minVersionMatch[3], 10)];
+const maxParts = [parseInt(maxVersionMatch[1], 10), parseInt(maxVersionMatch[2], 10), parseInt(maxVersionMatch[3], 10)];
+const minNum = minParts[0] * 1000000 + minParts[1] * 1000 + minParts[2];
+const maxNum = maxParts[0] * 1000000 + maxParts[1] * 1000 + maxParts[2];
+if (minNum >= maxNum) {
+  console.error(`Error: MinVersion (${cliMin}) must be strictly less than MaxVersion (${cliMax}).`);
+  process.exit(1);
+}
+
 // 3. Resolve tag and clean version
 let tag = process.env.RELEASE_TAG || `v${pluginVersion}`;
 const tagArgIndex = process.argv.indexOf('--tag');

@@ -67,10 +67,11 @@ namespace FlexVault.VCS.Editor.UI
         private void OnEnable()
         {
             FlexVaultStateCache.OnStateChanged += OnStateChanged;
+            FlexVaultVersionGuard.OnAvailableUpdateChanged += Repaint;
             if (FlexVaultSettings.IsInFlexVaultRepository())
             {
                 FlexVaultStateCache.RefreshAsync();
-                _ = FlexVaultVersionGuard.CheckForRemoteUpdateAsync();
+                FlexVaultVersionGuard.CheckForRemoteUpdateAsync();
                 if (m_currentTab == Tab.History)
                 {
                     LoadHistoryEntries();
@@ -81,6 +82,7 @@ namespace FlexVault.VCS.Editor.UI
         private void OnDisable()
         {
             FlexVaultStateCache.OnStateChanged -= OnStateChanged;
+            FlexVaultVersionGuard.OnAvailableUpdateChanged -= Repaint;
         }
 
         private void OnFocus()
@@ -154,10 +156,8 @@ namespace FlexVault.VCS.Editor.UI
             {
                 DrawVersionMismatchBanner();
             }
-            else
-            {
-                DrawUpdateAvailableBanner();
-            }
+
+            DrawUpdateAvailableBanner();
 
             GUILayout.Space(2f);
             DrawTabBar();
@@ -269,6 +269,7 @@ namespace FlexVault.VCS.Editor.UI
                 if (GUILayout.Button("Retry Version Check", EditorStyles.miniButton, GUILayout.Width(150)))
                 {
                     FlexVaultVersionGuard.ResetCachedVersion();
+                    FlexVaultVersionGuard.CheckForRemoteUpdateAsync();
                     FlexVaultStateCache.RefreshAsync(skipScan: false, force: true);
                 }
             }

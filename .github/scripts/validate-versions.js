@@ -71,6 +71,16 @@ if (!semverRegex.test(cliMin) || !semverRegex.test(cliMax)) {
   console.error(`Error: Parsed CLI compatibility bounds ('${cliMin}', '${cliMax}') are not valid semver.`);
   process.exit(1);
 }
+
+const minParts = [parseInt(minVersionMatch[1], 10), parseInt(minVersionMatch[2], 10), parseInt(minVersionMatch[3], 10)];
+const maxParts = [parseInt(maxVersionMatch[1], 10), parseInt(maxVersionMatch[2], 10), parseInt(maxVersionMatch[3], 10)];
+const minNum = minParts[0] * 1000000 + minParts[1] * 1000 + minParts[2];
+const maxNum = maxParts[0] * 1000000 + maxParts[1] * 1000 + maxParts[2];
+if (minNum >= maxNum) {
+  console.error(`Error: MinVersion (${cliMin}) must be strictly less than MaxVersion (${cliMax}).`);
+  process.exit(1);
+}
+
 console.log(`[Version Check] FlexVaultVersionGuard CLI compatibility bounds: >= ${cliMin}, < ${cliMax}`);
 
 console.log('All version checks passed successfully.');
