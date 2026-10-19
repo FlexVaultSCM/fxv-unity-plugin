@@ -198,6 +198,139 @@ namespace FlexVault.VCS.Editor.Core
 
             return true;
         }
+
+        public static System.Collections.Generic.List<System.Diagnostics.ProcessStartInfo> BuildTerminalStartInfoCandidates(string workingDirectory, RuntimePlatform platform)
+        {
+            var candidates = new System.Collections.Generic.List<System.Diagnostics.ProcessStartInfo>();
+            if (string.IsNullOrEmpty(workingDirectory))
+            {
+                return candidates;
+            }
+
+            if (platform == RuntimePlatform.WindowsEditor)
+            {
+                string winDir = workingDirectory.Replace('/', '\\');
+                string escapedPsDir = winDir.Replace("'", "''");
+
+                candidates.Add(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "wt.exe",
+                    Arguments = $"-d \"{winDir}\"",
+                    WorkingDirectory = winDir,
+                    UseShellExecute = true
+                });
+
+                candidates.Add(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = $"-NoExit -Command \"Set-Location -LiteralPath '{escapedPsDir}'\"",
+                    WorkingDirectory = winDir,
+                    UseShellExecute = true
+                });
+
+                candidates.Add(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = $"/K cd /d \"{winDir}\"",
+                    WorkingDirectory = winDir,
+                    UseShellExecute = true
+                });
+            }
+            else if (platform == RuntimePlatform.OSXEditor)
+            {
+                candidates.Add(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "open",
+                    Arguments = $"-a Terminal \"{workingDirectory}\"",
+                    WorkingDirectory = workingDirectory,
+                    UseShellExecute = false
+                });
+            }
+            else
+            {
+                string[] terminals = {
+                    "x-terminal-emulator",
+                    "gnome-terminal",
+                    "konsole",
+                    "xfce4-terminal",
+                    "kitty",
+                    "alacritty",
+                    "wezterm",
+                    "xterm"
+                };
+
+                foreach (string term in terminals)
+                {
+                    string args = string.Empty;
+                    if (term == "x-terminal-emulator" || term == "gnome-terminal" || term == "xfce4-terminal")
+                    {
+                        args = $"--working-directory=\"{workingDirectory}\"";
+                    }
+                    else if (term == "konsole")
+                    {
+                        args = $"--workdir \"{workingDirectory}\"";
+                    }
+                    else if (term == "kitty")
+                    {
+                        args = $"--directory \"{workingDirectory}\"";
+                    }
+                    else if (term == "alacritty")
+                    {
+                        args = $"--working-directory \"{workingDirectory}\"";
+                    }
+                    else if (term == "wezterm")
+                    {
+                        args = $"start --cwd \"{workingDirectory}\"";
+                    }
+
+                    candidates.Add(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = term,
+                        Arguments = args,
+                        WorkingDirectory = workingDirectory,
+                        UseShellExecute = false
+                    });
+                }
+            }
+
+            return candidates;
+        }
+
+        public static bool OpenWorkspaceInTerminal()
+        {
+            string repoRoot = GetRepositoryRoot();
+            if (string.IsNullOrEmpty(repoRoot) || !Directory.Exists(repoRoot))
+            {
+                EditorUtility.DisplayDialog(
+                    "FlexVault",
+                    "Could not locate the workspace directory to open in a terminal.",
+                    "OK");
+                return false;
+            }
+
+            var candidates = BuildTerminalStartInfoCandidates(repoRoot, Application.platform);
+            foreach (var psi in candidates)
+            {
+                try
+                {
+                    var process = System.Diagnostics.Process.Start(psi);
+                    if (process != null || psi.UseShellExecute)
+                    {
+                        return true;
+                    }
+                }
+                catch
+                {
+                    // Try next terminal candidate
+                }
+            }
+
+            EditorUtility.DisplayDialog(
+                "FlexVault",
+                $"Failed to launch a terminal in:\n{repoRoot}",
+                "OK");
+            return false;
+        }
     }
 
     public class FlexVaultSettingsUIState
@@ -297,6 +430,11 @@ namespace FlexVault.VCS.Editor.Core
                     {
                         FlexVaultWindow.ShowWindow();
                     };
+                }
+
+                if (GUILayout.Button("Open Workspace in Terminal", GUILayout.Width(190)))
+                {
+                    FlexVaultSettings.OpenWorkspaceInTerminal();
                 }
             }
             EditorGUILayout.EndHorizontal();
