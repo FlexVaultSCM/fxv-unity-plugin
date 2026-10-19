@@ -58,6 +58,10 @@ jobs:
           version="${{ needs.release-please.outputs.tag_name }}"
           clean_version="${version#v}"
 
+          # Generate version.json containing version metadata and CLI compatibility range
+          node .github/scripts/generate-version-json.js --tag "$version"
+          sha256sum version.json > version.json.sha256
+
           npm pack
 
           packed_tgz=$(ls com.flexvault.vcs-*.tgz | head -n 1)
@@ -84,6 +88,8 @@ jobs:
           version="${{ needs.release-please.outputs.tag_name }}"
           clean_version="${version#v}"
           gh release upload "${version}" \
+            version.json \
+            version.json.sha256 \
             "com.flexvault.vcs-${clean_version}.tgz" \
             "com.flexvault.vcs-${clean_version}.tgz.sha256" \
             "com.flexvault.vcs.tgz" \

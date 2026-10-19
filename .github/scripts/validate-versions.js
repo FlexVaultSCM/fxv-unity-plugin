@@ -49,4 +49,28 @@ if (tagIndex !== -1 && tagIndex + 1 < process.argv.length) {
   console.log(`[Version Check] Release tag matches package.json: ${tag} == ${pluginVersion}`);
 }
 
+// 4. Validate CLI compatibility bounds in Editor/Core/FlexVaultVersionGuard.cs
+const guardPath = path.join(repoRoot, 'Editor', 'Core', 'FlexVaultVersionGuard.cs');
+if (!fs.existsSync(guardPath)) {
+  console.error('Error: FlexVaultVersionGuard.cs not found at ' + guardPath);
+  process.exit(1);
+}
+const guardContent = fs.readFileSync(guardPath, 'utf8');
+
+const minVersionMatch = guardContent.match(/MinVersion\s*=\s*new\s+FxvCliVersion\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/);
+const maxVersionMatch = guardContent.match(/MaxVersion\s*=\s*new\s+FxvCliVersion\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/);
+
+if (!minVersionMatch || !maxVersionMatch) {
+  console.error('Error: Could not parse MinVersion or MaxVersion from ' + guardPath);
+  process.exit(1);
+}
+
+const cliMin = `${minVersionMatch[1]}.${minVersionMatch[2]}.${minVersionMatch[3]}`;
+const cliMax = `${maxVersionMatch[1]}.${maxVersionMatch[2]}.${maxVersionMatch[3]}`;
+if (!semverRegex.test(cliMin) || !semverRegex.test(cliMax)) {
+  console.error(`Error: Parsed CLI compatibility bounds ('${cliMin}', '${cliMax}') are not valid semver.`);
+  process.exit(1);
+}
+console.log(`[Version Check] FlexVaultVersionGuard CLI compatibility bounds: >= ${cliMin}, < ${cliMax}`);
+
 console.log('All version checks passed successfully.');
