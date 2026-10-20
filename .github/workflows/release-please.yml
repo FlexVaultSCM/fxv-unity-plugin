@@ -98,3 +98,20 @@ jobs:
             "com.flexvault.vcs-${clean_version}.zip.sha256" \
             --clobber \
             --repo "${{ github.repository }}"
+
+  stage-discord-draft:
+    name: Stage Discord release announcement
+    needs: [release-please, publish-package]
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stage Discord Announcement
+        uses: FlexVaultSCM/discord-release-action@v1
+        with:
+          webhook-url: ${{ secrets.DISCORD_STAGING_WEBHOOK }}
+          from-gh-release: ${{ needs.release-please.outputs.tag_name }}
+          product-name: "FlexVault Unity Plugin"
+          docs-url: "https://docs.fxv.dev/how-to/unity-plugin"
