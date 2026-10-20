@@ -22,19 +22,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Stage Discord Release Announcement
+        uses: FlexVaultSCM/discord-release-action@v1
         with:
-          node-version: '20'
-
-      - name: Format & Send Discord Drafts
-        env:
-          GH_TOKEN: ${{ github.token }}
-          DISCORD_STAGING_WEBHOOK: ${{ secrets.DISCORD_STAGING_WEBHOOK }}
-          DISCORD_FEEDBACK_CHANNEL_ID: ${{ vars.DISCORD_FEEDBACK_CHANNEL_ID }}
-        run: |
-          TAG_VAL="${{ github.event.inputs.tag || github.event.release.tag_name || '' }}"
-          node .github/scripts/send-discord-draft.js \
-            --from-gh-release "$TAG_VAL" \
-            --product-name "FlexVault Unity Plugin" \
-            --docs-url "https://docs.fxv.dev/how-to/unity-plugin"
+          webhook-url: ${{ secrets.DISCORD_STAGING_WEBHOOK }}
+          from-gh-release: ${{ github.event.inputs.tag || github.event.release.tag_name || '' }}
+          product-name: 'FlexVault Unity Plugin'
+          docs-url: 'https://docs.fxv.dev/how-to/unity-plugin'
