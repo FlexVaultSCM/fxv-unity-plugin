@@ -92,3 +92,27 @@ jobs:
             "com.flexvault.vcs-${clean_version}.zip.sha256" \
             --clobber \
             --repo "${{ github.repository }}"
+
+  stage-discord-draft:
+    name: Stage Discord release announcement
+    needs: [release-please, publish-package]
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Send Discord Draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISCORD_STAGING_WEBHOOK: ${{ secrets.DISCORD_STAGING_WEBHOOK }}
+          DISCORD_FEEDBACK_CHANNEL_ID: ${{ vars.DISCORD_FEEDBACK_CHANNEL_ID }}
+        run: |
+          node .github/scripts/send-discord-draft.js \
+            --from-gh-release "${{ needs.release-please.outputs.tag_name }}" \
+            --product-name "FlexVault Unity Plugin" \
+            --docs-url "https://docs.fxv.dev/how-to/unity-plugin"
