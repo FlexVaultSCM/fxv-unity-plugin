@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.11.0...v0.12.0) (2026-10-20)
+
+
+### Features
+
+* improve history diff predecessor resolution and cache fingerprinting ([#45](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/45)) ([b3811d9](https://github.com/FlexVaultSCM/fxv-unity-plugin/commit/b3811d9feac7450a9091814a6dbdd3910659f8d2))
+
 ## [0.11.0](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.10.0...v0.11.0) (2026-10-19)
 
 
