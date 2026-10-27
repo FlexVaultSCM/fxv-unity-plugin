@@ -44,7 +44,7 @@ namespace FlexVault.VCS.Editor.Hooks
                 return;
             }
 
-            // Periodic fetch is supported only on fxv >= 0.12.0
+            // Periodic fetch is supported only when CLI meets minimum fetch capability
             if (FlexVaultVersionGuard.IsVersionCompatible != true || !FlexVaultVersionGuard.SupportsFetch)
             {
                 return;
