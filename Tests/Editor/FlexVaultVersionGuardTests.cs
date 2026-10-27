@@ -82,6 +82,15 @@ namespace FlexVault.VCS.Editor.Tests
 
             Assert.IsTrue(FlexVaultVersionGuard.CheckVersion("0.12.9", out string error7));
             Assert.IsNull(error7);
+
+            Assert.IsTrue(FlexVaultVersionGuard.CheckVersion("0.13.0", out string error8));
+            Assert.IsNull(error8);
+
+            Assert.IsTrue(FlexVaultVersionGuard.CheckVersion("0.13.1", out string error9));
+            Assert.IsNull(error9);
+
+            Assert.IsTrue(FlexVaultVersionGuard.CheckVersion("0.13.9", out string error10));
+            Assert.IsNull(error10);
         }
 
         [Test]
@@ -107,7 +116,7 @@ namespace FlexVault.VCS.Editor.Tests
             StringAssert.Contains("Incompatible FlexVault CLI version", errorOldest);
 
             // Upper bound (exclusive)
-            Assert.IsFalse(FlexVaultVersionGuard.CheckVersion("0.13.0", out string errorLiteralCeiling));
+            Assert.IsFalse(FlexVaultVersionGuard.CheckVersion("0.14.0", out string errorLiteralCeiling));
             Assert.IsNotNull(errorLiteralCeiling);
             StringAssert.Contains("Incompatible FlexVault CLI version", errorLiteralCeiling);
 
@@ -115,10 +124,10 @@ namespace FlexVault.VCS.Editor.Tests
             Assert.IsNotNull(errorAtUpper);
             StringAssert.Contains("Incompatible FlexVault CLI version", errorAtUpper);
             StringAssert.Contains("Please update the FlexVault Unity plugin", errorAtUpper);
-            StringAssert.Contains("< 0.13.0", errorAtUpper);
+            StringAssert.Contains("< 0.14.0", errorAtUpper);
 
             // Above upper bound
-            Assert.IsFalse(FlexVaultVersionGuard.CheckVersion("0.13.1", out string errorAboveCeiling));
+            Assert.IsFalse(FlexVaultVersionGuard.CheckVersion("0.14.1", out string errorAboveCeiling));
             Assert.IsNotNull(errorAboveCeiling);
             StringAssert.Contains("Incompatible FlexVault CLI version", errorAboveCeiling);
 

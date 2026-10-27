@@ -80,23 +80,23 @@ namespace FlexVault.VCS.Editor.Tests
         [Test]
         public void BuildIntegrationRegisterArgs_FullySpecified_IncludesAllFlags()
         {
-            var args = InvokeBuildIntegrationRegisterArgs("/tmp/ws", "0.6.0", "0.11.0", "0.13.0");
+            var args = InvokeBuildIntegrationRegisterArgs("/tmp/ws", "0.6.0", "0.11.0", "0.14.0");
             CollectionAssert.AreEqual(
-                new[] { "integration", "register", "--name", "unity", "--plugin-version", "0.6.0", "--min", "0.11.0", "--max-version", "0.13.0", "--workspace", "/tmp/ws" },
+                new[] { "integration", "register", "--name", "unity", "--plugin-version", "0.6.0", "--min", "0.11.0", "--max-version", "0.14.0", "--workspace", "/tmp/ws" },
                 args);
         }
 
         [Test]
         public void BuildIntegrationRegisterArgs_UnknownPluginVersion_OmitsPluginVersionFlag()
         {
-            var args = InvokeBuildIntegrationRegisterArgs("/tmp/ws", "unknown", "0.11.0", "0.13.0");
+            var args = InvokeBuildIntegrationRegisterArgs("/tmp/ws", "unknown", "0.11.0", "0.14.0");
             CollectionAssert.DoesNotContain(args, "--plugin-version");
         }
 
         [Test]
         public void BuildIntegrationRegisterArgs_EmptyPluginVersion_OmitsPluginVersionFlag()
         {
-            var args = InvokeBuildIntegrationRegisterArgs("/tmp/ws", "", "0.11.0", "0.13.0");
+            var args = InvokeBuildIntegrationRegisterArgs("/tmp/ws", "", "0.11.0", "0.14.0");
             CollectionAssert.DoesNotContain(args, "--plugin-version");
         }
 
