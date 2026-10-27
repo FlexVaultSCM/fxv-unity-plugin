@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.12.0...v0.13.0) (2026-10-27)
+
+
+### Features
+
+* bump supported max fxv version to 0.14.0 ([#49](https://github.com/FlexVaultSCM/fxv-unity-plugin/issues/49)) ([767188b](https://github.com/FlexVaultSCM/fxv-unity-plugin/commit/767188b81b182568409471f9c7451126b61ecf5e))
+
 ## [0.12.0](https://github.com/FlexVaultSCM/fxv-unity-plugin/compare/v0.11.0...v0.12.0) (2026-10-20)
 
 
