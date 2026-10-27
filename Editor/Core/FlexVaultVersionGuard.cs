@@ -132,7 +132,7 @@ namespace FlexVault.VCS.Editor.Core
         // MinVersion tracks the `status` command's payload schema; versions below it emit a shape
         // this plugin no longer parses.
         public static readonly FxvCliVersion MinVersion = new FxvCliVersion(0, 11, 0);
-        public static readonly FxvCliVersion MaxVersion = new FxvCliVersion(0, 13, 0);
+        public static readonly FxvCliVersion MaxVersion = new FxvCliVersion(0, 14, 0);
         public static readonly FxvCliVersion FetchSupportedVersion = new FxvCliVersion(0, 12, 0);
 
         public static bool? IsVersionCompatible => s_isVersionCompatible;
