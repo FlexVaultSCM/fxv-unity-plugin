@@ -248,6 +248,11 @@ namespace FlexVault.VCS.Editor.Core
                                             var errorEnvelope = JsonConvert.DeserializeObject<OutputEnvelope<ErrorPayload>>(jsonStr);
                                             result.Success = false;
                                             result.ErrorMessage = errorEnvelope?.Message?.Payload?.Message ?? "FlexVault CLI returned an error.";
+                                            if (result.ExitCode == FlexVaultVersionGuard.ClientUpgradeRequiredExitCode
+                                                || errorEnvelope?.Message?.Payload?.ExitCode == FlexVaultVersionGuard.ClientUpgradeRequiredExitCode)
+                                            {
+                                                result.ErrorMessage = FlexVaultVersionGuard.MarkClientUpgradeRequired(errorEnvelope?.Message?.Payload?.Message);
+                                            }
                                             return result;
                                         }
 
@@ -262,6 +267,10 @@ namespace FlexVault.VCS.Editor.Core
                                     {
                                         result.Success = false;
                                         result.ErrorMessage = !string.IsNullOrEmpty(result.RawStderr) ? result.RawStderr : $"Exit code {result.ExitCode}: {result.RawStdout}";
+                                        if (result.ExitCode == FlexVaultVersionGuard.ClientUpgradeRequiredExitCode)
+                                        {
+                                            result.ErrorMessage = FlexVaultVersionGuard.MarkClientUpgradeRequired(result.RawStderr);
+                                        }
                                         return result;
                                     }
 
@@ -283,6 +292,10 @@ namespace FlexVault.VCS.Editor.Core
                         {
                             result.Success = false;
                             result.ErrorMessage = !string.IsNullOrEmpty(result.RawStderr) ? result.RawStderr : $"Command failed with exit code {result.ExitCode}: {result.RawStdout}";
+                            if (result.ExitCode == FlexVaultVersionGuard.ClientUpgradeRequiredExitCode)
+                            {
+                                result.ErrorMessage = FlexVaultVersionGuard.MarkClientUpgradeRequired(result.RawStderr);
+                            }
                         }
 
                         return result;

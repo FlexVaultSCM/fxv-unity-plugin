@@ -156,6 +156,34 @@ namespace FlexVault.VCS.Editor.Tests
         }
 
         [Test]
+        public void MarkClientUpgradeRequired_BlocksCliAndKeepsCliMessage()
+        {
+            FlexVaultVersionGuard.ResetCachedVersion();
+            FlexVaultVersionGuard.CheckAndCacheVersion("0.13.3", out _);
+            Assert.IsTrue(FlexVaultVersionGuard.IsVersionCompatible);
+
+            string cliMessage = "fxv 0.13.3 is older than 0.14.0, the oldest version this broker serves";
+            string message = FlexVaultVersionGuard.MarkClientUpgradeRequired(cliMessage);
+
+            Assert.IsFalse(FlexVaultVersionGuard.IsVersionCompatible);
+            Assert.AreEqual(message, FlexVaultVersionGuard.LastErrorMessage);
+            StringAssert.Contains(cliMessage, message);
+            StringAssert.Contains("Install a newer release of fxv", message);
+
+            FlexVaultVersionGuard.ResetCachedVersion();
+            Assert.IsNull(FlexVaultVersionGuard.IsVersionCompatible);
+            Assert.IsNull(FlexVaultVersionGuard.LastErrorMessage);
+        }
+
+        [Test]
+        public void FormatClientUpgradeRequiredMessage_EmptyCliMessage_UsesFallback()
+        {
+            string message = FlexVaultVersionGuard.FormatClientUpgradeRequiredMessage("  ");
+            StringAssert.Contains("no longer supports this fxv version", message);
+            StringAssert.Contains("Install a newer release of fxv", message);
+        }
+
+        [Test]
         public void ProcessRemoteManifest_ParsesNewerReleaseAndSetsAvailableUpdate_WhenCliCompatible()
         {
             FlexVaultVersionGuard.ResetCachedVersion();
