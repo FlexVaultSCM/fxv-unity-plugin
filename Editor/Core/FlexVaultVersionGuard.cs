@@ -329,7 +329,7 @@ namespace FlexVault.VCS.Editor.Core
         public static string FormatClientUpgradeRequiredMessage(string cliMessage)
         {
             string detail = string.IsNullOrWhiteSpace(cliMessage) ? "The FlexVault server no longer supports this fxv version." : cliMessage.Trim();
-            return $"{detail}\n\nInstall a newer release of fxv (run 'fxv update' or download it from https://fxv.dev), then click 'Test CLI Connection' in FlexVault Settings.";
+            return $"{detail}\n\nInstall a newer release of fxv (run 'fxv upgrade' or download it from https://fxv.dev), then click 'Test CLI Connection' in FlexVault Settings.";
         }
 
         // Marks the CLI as incompatible so FxvRunner stops issuing commands and the FlexVault
@@ -382,7 +382,7 @@ namespace FlexVault.VCS.Editor.Core
 
             if (cliVersion < MinVersion)
             {
-                errorMessage = $"Incompatible FlexVault CLI version '{versionStr}'. This plugin requires fxv >= {MinVersion}, < {MaxVersion}. Please upgrade your fxv CLI executable to a compatible version (e.g. run 'fxv update' or download the latest release from https://fxv.dev).";
+                errorMessage = $"Incompatible FlexVault CLI version '{versionStr}'. This plugin requires fxv >= {MinVersion}, < {MaxVersion}. Please upgrade your fxv CLI executable to a compatible version (e.g. run 'fxv upgrade' or download the latest release from https://fxv.dev).";
                 return false;
             }
 
