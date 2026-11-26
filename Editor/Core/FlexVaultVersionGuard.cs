@@ -323,6 +323,24 @@ namespace FlexVault.VCS.Editor.Core
             }
         }
 
+        // fxv exit code returned when a FlexVault broker refuses this CLI as too old.
+        public const int ClientUpgradeRequiredExitCode = 94;
+
+        public static string FormatClientUpgradeRequiredMessage(string cliMessage)
+        {
+            string detail = string.IsNullOrWhiteSpace(cliMessage) ? "The FlexVault server no longer supports this fxv version." : cliMessage.Trim();
+            return $"{detail}\n\nInstall a newer release of fxv (run 'fxv update' or download it from https://fxv.dev), then click 'Test CLI Connection' in FlexVault Settings.";
+        }
+
+        // Marks the CLI as incompatible so FxvRunner stops issuing commands and the FlexVault
+        // window and settings show this message until the cached version is reset.
+        public static string MarkClientUpgradeRequired(string cliMessage)
+        {
+            s_isVersionCompatible = false;
+            s_lastErrorMessage = FormatClientUpgradeRequiredMessage(cliMessage);
+            return s_lastErrorMessage;
+        }
+
         public static bool CheckAndCacheVersion(string versionStr, out string errorMessage)
         {
             bool ok = CheckVersion(versionStr, out errorMessage);
